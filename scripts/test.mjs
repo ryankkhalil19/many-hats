@@ -9,7 +9,7 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 const only = process.argv.slice(2);
 const files = (
-  only.length ? only : fs.globSync('test/{unit,contract,launcher}/**/*.test.ts', { cwd: root })
+  only.length ? only : fs.globSync('test/{unit,contract,launcher}/**/*.test.{ts,mjs}', { cwd: root })
 ).sort();
 if (!files.length) {
   console.error('no test files found');
