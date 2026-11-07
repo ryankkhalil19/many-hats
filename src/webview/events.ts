@@ -1,12 +1,30 @@
 /** Clicks on the sidebar's buttons and rows, right-clicks, the search box, and focus moving onto a row. */
 import { openSession, showAccountMenu, showSessionMenu, startRename } from './actions';
-import { refreshSessions, render } from './render';
+import { flush, refreshSessions, render } from './render';
 import { select } from './selection';
 import type { Sidebar } from './sidebar';
 import type { Filter } from './view';
 
 export function bindPointer(sb: Sidebar): void {
   const { app, ui } = sb;
+
+  // A state that arrives between a press and its release would replace the element being
+  // clicked, and the browser would drop the click. It waits until the click has happened.
+  let safety: ReturnType<typeof setTimeout> | undefined;
+  const released = (): void => {
+    if (!sb.pressing) return;
+    sb.pressing = false;
+    clearTimeout(safety);
+    setTimeout(() => flush(sb, false), 0); // after the click this release produces
+  };
+  app.addEventListener('pointerdown', () => {
+    sb.pressing = true;
+    clearTimeout(safety);
+    safety = setTimeout(released, 2000); // a release outside the view can't hold states back for long
+  });
+  window.addEventListener('pointerup', released);
+  window.addEventListener('pointercancel', released);
+  window.addEventListener('blur', released);
 
   app.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;

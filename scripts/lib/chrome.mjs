@@ -177,11 +177,19 @@ export async function openPage({ width = 320, height = 1100, scale = 2, chrome =
     },
     /** A real click (press and release) on the element, or at a point. */
     async click(target, { button = 'left' } = {}) {
+      await page.down(target, { button });
+      await page.up({ button });
+    },
+    /** Presses a mouse button on the element, or at a point, and holds it. */
+    async down(target, { button = 'left' } = {}) {
       const { x, y } = typeof target === 'string' ? await page.centre(target) : target;
       await page.move(x, y);
-      for (const type of ['mousePressed', 'mouseReleased']) {
-        await cmd('Input.dispatchMouseEvent', { type, x, y, button, clickCount: 1 });
-      }
+      await cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button, clickCount: 1 });
+    },
+    /** Releases the button where the pointer is. */
+    async up({ button = 'left' } = {}) {
+      const { x, y } = page.pointer;
+      await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button, clickCount: 1 });
     },
     /** A key press, such as 'ArrowDown' or 'Enter', with modifiers such as ['meta']. */
     async key(key, modifiers = []) {

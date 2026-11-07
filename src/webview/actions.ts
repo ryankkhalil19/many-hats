@@ -35,7 +35,8 @@ export function startRename(sb: Sidebar, id: string): void {
     sb.renaming = null;
     const value = input.value.replace(/\s+/g, ' ').trim();
     if (commit && value && value !== s.title) {
-      s.title = value; // show it right away; the next state confirms it
+      s.title = value; // shown right away, and over any state from before the extension had it
+      sb.renames.add(id, value);
       sb.post({ type: 'rename', id, title: value });
     }
     flush(sb, true);

@@ -30,8 +30,9 @@ import {
   type MenuActions,
   type MenuItem,
 } from '../../src/webview/menuItems';
+import { PendingRenames } from '../../src/webview/renames';
 import type { AccountView, SessionView, SidebarState, ToHost } from '../../src/shared/protocol';
-import { A, B, C } from '../helpers/home';
+import { A, B, C, D } from '../helpers/home';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
 const ui = (o: Partial<UiState> = {}): UiState => ({
@@ -346,4 +347,39 @@ test('menus: an account — the default can’t be removed; signed out, it can o
     { type: 'removeAccount', account: 'client' },
     { type: 'new', account: 'work' },
   ]);
+});
+
+test('renames: a rename stays over older states until one has it, or for 10 s', () => {
+  const renames = new PendingRenames(10_000);
+  renames.add(A, 'New name', NOW);
+  assert.equal(
+    renames.apply(state(), NOW + 100).sessions[0]?.title,
+    'New name',
+    'a state from before the rename',
+  );
+  renames.apply(state({ sessions: [session({ title: 'New name' })] }), NOW + 200);
+  assert.equal(
+    renames.apply(state(), NOW + 300).sessions[0]?.title,
+    'Work',
+    'once confirmed, the extension’s title wins',
+  );
+
+  const lost = new PendingRenames(10_000);
+  lost.add(A, 'Never saved', NOW);
+  assert.equal(lost.apply(state(), NOW + 9_999).sessions[0]?.title, 'Never saved');
+  assert.equal(
+    lost.apply(state(), NOW + 10_001).sessions[0]?.title,
+    'Work',
+    'a rename that never comes through stops',
+  );
+
+  const gone = new PendingRenames();
+  gone.add(D, 'Deleted meanwhile', NOW);
+  gone.apply(state(), NOW);
+  const back = state({ sessions: [session({ id: D, title: 'Restored' })] });
+  assert.equal(
+    gone.apply(back, NOW + 1).sessions[0]?.title,
+    'Restored',
+    'a session missing from a state is let go',
+  );
 });

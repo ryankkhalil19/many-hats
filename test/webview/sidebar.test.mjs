@@ -201,6 +201,42 @@ test('the keyboard: arrows, Home, End, Enter, F2 to rename, Escape to cancel, âŒ
   assert.deepEqual(await posted(), [{ type: 'delete', id: id(1) }]);
 });
 
+test('a rename stays while states from before it arrive', { skip }, async () => {
+  // The stand-in extension's state still has the old title: a state built before it handled the rename.
+  const stale = `window.postMessage({ type: 'state', state: JSON.parse(JSON.stringify(state)) }, '*')`;
+  await page.hover(row(3));
+  await page.click(`${row(3)} [data-act="rename"]`);
+  await page.until(`document.activeElement?.className === 'rename-input'`);
+  await page.eval(stale); // arrives during the rename, so it waits
+  await new Promise((r) => setTimeout(r, 50));
+  await page.type('Release notes, final');
+  await page.key('Enter');
+  assert.equal(await titleOf(3), 'Release notes, final', 'the waiting state doesnâ€™t put the old title back');
+  await page.eval(stale); // one more, after the rename but before the extension's answer
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(await titleOf(3), 'Release notes, final');
+  await page.until(`window.posted.some((m) => m.type === 'rename')`);
+  await new Promise((r) => setTimeout(r, 150)); // the extension's answer, with the new title
+  assert.equal(await titleOf(3), 'Release notes, final');
+});
+
+test('a click still lands when a state arrives between the press and the release', { skip }, async () => {
+  await forget();
+  await page.down('.card[data-account="client"] [data-act="signIn"]');
+  // The stand-in extension changes, and sends its state while the button is down.
+  await page.eval(`(() => {
+    state.sessions[0].title = 'Arrived mid-click';
+    window.postMessage({ type: 'state', state: JSON.parse(JSON.stringify(state)) }, '*');
+  })()`);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(await titleOf(1), 'Fix flaky checkout test', 'the state waits while the button is down');
+  await page.up();
+  assert.deepEqual(await posted(), [{ type: 'signIn', account: 'client' }], 'the click lands');
+  await page.until(
+    `document.querySelector(${json(row(1))}).querySelector('.title').textContent === 'Arrived mid-click'`,
+  );
+});
+
 test(
   'search narrows the list and Escape clears it; the tabs switch between all, open and archived',
   { skip },

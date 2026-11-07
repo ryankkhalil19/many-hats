@@ -1,5 +1,6 @@
 /** The sidebar's state: what the extension last sent, the UI's own choices, and what's in progress. */
 import { Menus } from './menu';
+import { PendingRenames } from './renames';
 import { restoreUi, type UiState } from './view';
 import type { SessionView, SidebarState, ToHost } from '../shared/protocol';
 
@@ -16,6 +17,10 @@ export class Sidebar {
   pending: SidebarState | null = null;
   /** The session being renamed in place. */
   renaming: { id: string } | null = null;
+  /** Renames the extension hasn't confirmed yet: every state shown gets them laid over it. */
+  readonly renames = new PendingRenames();
+  /** A mouse button is down in the sidebar: rendering now would replace what it's clicking. */
+  pressing = false;
   /** Collapsed sections, filter, search, selection, hidden limits: kept across reloads of the view. */
   readonly ui: UiState;
   readonly menus: Menus;
@@ -30,9 +35,9 @@ export class Sidebar {
     this.menus = new Menus(app, onMenuClosed);
   }
 
-  /** A rename or a menu is open, and rendering now would close it. */
+  /** A rename or a menu is open, or a click is under way: rendering now would undo it. */
   get busy(): boolean {
-    return this.renaming !== null || this.menus.isOpen;
+    return this.renaming !== null || this.menus.isOpen || this.pressing;
   }
 
   save(): void {

@@ -97,7 +97,7 @@ export function receive(sb: Sidebar, state: SidebarState): void {
     sb.pending = state;
     return;
   }
-  sb.state = state;
+  sb.state = sb.renames.apply(state);
   render(sb);
 }
 
@@ -105,7 +105,7 @@ export function receive(sb: Sidebar, state: SidebarState): void {
 export function flush(sb: Sidebar, always: boolean): void {
   if (sb.busy) return;
   if (sb.pending) {
-    sb.state = sb.pending;
+    sb.state = sb.renames.apply(sb.pending);
     sb.pending = null;
     render(sb);
   } else if (always) {

@@ -116,10 +116,16 @@ webview/main.ts        entry: wires the parts below, then says it's ready
         actions.ts     open, rename in place, and the menus
         menuItems.ts   what each menu offers, as pure functions
         menu.ts        the pop-up menu widget
+        renames.ts     renames the extension hasn't confirmed yet
         events.ts      clicks, right-clicks and search;  keyboard.ts  the keys
 ```
 
-A state that arrives while the user is renaming or has a menu open waits, and is shown when they finish. **Tests:** the pure parts (`view.ts`, `menuItems.ts`, `format.ts`) have unit tests. `test/webview/` drives the whole sidebar in headless Chrome against `tools/preview`, whose stand-in extension answers like the real one.
+Each state replaces the sidebar's markup, so a state never lands in the middle of something:
+
+- **While the user is busy, a new state waits.** That covers renaming, an open menu, and a mouse button that's down: replacing the button being clicked would drop the click. The waiting state is shown when they finish.
+- **A rename shows at once,** and stays over any state the extension built before it handled the rename, until a state has the new title (or 10 seconds pass).
+
+**Tests:** the pure parts (`view.ts`, `menuItems.ts`, `renames.ts`, `format.ts`) have unit tests. `test/webview/` drives the whole sidebar in headless Chrome against `tools/preview`, whose stand-in extension answers like the real one. Both of the races above have a test that reproduces them on demand.
 
 ## Releases
 
