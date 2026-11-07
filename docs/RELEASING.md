@@ -43,7 +43,7 @@ Until a store's variable is `true`, releases go to GitHub Releases only.
 
 1. **Update `CHANGELOG.md`.** Move "Unreleased" under the new version and date.
 2. **Set the version** in `package.json`. `"preview": true` stays while the major version is 0.
-3. **Check:** `npm run check`, `npm run test:integration`, then `npm run test:e2e` locally.
+3. **Check:** `npm run check`, `npm run test:webview`, `npm run test:integration`, then `npm run test:e2e` locally.
 4. **Commit and tag:**
    ```bash
    git commit -am "Release 0.9.1"
