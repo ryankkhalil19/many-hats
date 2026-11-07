@@ -226,5 +226,10 @@
     "glob": "^14.0.4",
     "minimatch": "^11.0.5",
     "serialize-javascript": "^7.1.4"
+  },
+  "allowScripts": {
+    "@vscode/vsce-sign": false,
+    "esbuild": false,
+    "fsevents": false
   }
 }
