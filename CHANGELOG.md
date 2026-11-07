@@ -4,6 +4,13 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-07
+
+### Fixed
+
+- The Intel Mac build is on the VS Code Marketplace. 0.9.0's was accepted but never listed: it arrived a second after the Apple silicon build, while the Marketplace was still creating the extension.
+- Releases now confirm that every package can be downloaded from each store before they finish. A package that's missing is published once more, and the release fails, naming it, if it never appears.
+
 ## [0.9.0] - 2026-11-07
 
 First public pre-release.
@@ -27,5 +34,6 @@ First public pre-release.
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 
-[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/ryankkhalil19/many-hats/releases/tag/v0.9.1
 [0.9.0]: https://github.com/ryankkhalil19/many-hats/releases/tag/v0.9.0

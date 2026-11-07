@@ -51,9 +51,13 @@ Until a store's variable is `true`, releases go to GitHub Releases only.
    git push origin main v0.9.1
    ```
 5. **Approve.** The **Release** workflow builds and tests, packages one `.vsix` per Mac target, and records checksums and build provenance. It then waits for approval of the `release` environment. Approve it in the Actions tab. It then:
-   - publishes to the stores;
-   - creates the GitHub Release with the packages.
+   - creates the GitHub Release with the packages;
+   - publishes them to each store, one package at a time (`scripts/publish-store.mjs`). A store's step passes only once that store serves every package. A package still missing halfway through the 15-minute wait is published once more.
 6. **Check the listings.** Install from each store in a fresh editor profile.
+
+## If a store step fails
+
+The step names the package that never appeared. Re-run the publish job from the Actions tab and approve it again: packages already in a store are skipped, and the GitHub Release is updated in place. If it fails again, upload that package in the store's own page (the Marketplace's publisher page, or Open VSX's Publish page).
 
 ## If a release is bad
 
