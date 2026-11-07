@@ -1,0 +1,222 @@
+{
+  "name": "many-hats",
+  "displayName": "Many Hats for Claude Code",
+  "description": "Run each Claude Code tab on its own Claude account, side by side in one window, with every account's usage and sessions at a glance. macOS.",
+  "version": "0.9.0",
+  "preview": true,
+  "publisher": "ryankkhalil19",
+  "author": "ryankkhalil19",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1E1B4B",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/ryankkhalil19/many-hats#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ryankkhalil19/many-hats.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ryankkhalil19/many-hats/issues"
+  },
+  "qna": "https://github.com/ryankkhalil19/many-hats/issues",
+  "pricing": "Free",
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "claude code",
+    "claude",
+    "multiple accounts",
+    "multi-account",
+    "account switcher",
+    "sessions",
+    "usage limits"
+  ],
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:claude-vscode.editor.open",
+    "onWebviewPanel:claudeVSCodePanel",
+    "onView:claudeVSCodeSidebar",
+    "onView:claudeVSCodeSidebarSecondary",
+    "onView:claudeVSCodeSessionsList"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "manyHats.choose",
+        "title": "Choose Account for New Claude Code Tabs",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.openTab",
+        "title": "Open Claude Code Tab on Account…",
+        "category": "Many Hats",
+        "icon": "$(add)"
+      },
+      {
+        "command": "manyHats.moveTab",
+        "title": "Move Claude Code Tab to Account…",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.addAccount",
+        "title": "Add Account…",
+        "category": "Many Hats",
+        "icon": "$(person-add)"
+      },
+      {
+        "command": "manyHats.signIn",
+        "title": "Sign In to Account…",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.removeAccount",
+        "title": "Remove Account…",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.showTabs",
+        "title": "Show Claude Code Tabs by Account",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.refresh",
+        "title": "Refresh",
+        "category": "Many Hats",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "manyHats.repair",
+        "title": "Check and Repair Setup",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.collectDiagnostics",
+        "title": "Collect Diagnostics",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.removeEverything",
+        "title": "Remove All Accounts and Data…",
+        "category": "Many Hats"
+      }
+    ],
+    "icons": {
+      "many-hats-logo": {
+        "description": "Many Hats",
+        "default": {
+          "fontPath": "media/glyphs.woff",
+          "fontCharacter": "\\E001"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "manyHats",
+          "title": "Many Hats",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "manyHats": [
+        {
+          "type": "webview",
+          "id": "manyHats.sidebar",
+          "name": "Accounts & Sessions"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "manyHats.addAccount",
+          "when": "view == manyHats.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "manyHats.refresh",
+          "when": "view == manyHats.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "manyHats.repair",
+          "when": "view == manyHats.sidebar",
+          "group": "more@1"
+        },
+        {
+          "command": "manyHats.collectDiagnostics",
+          "when": "view == manyHats.sidebar",
+          "group": "more@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "manyHats.refresh",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit && tsc -p test/integration --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node scripts/test.mjs",
+    "test:coverage": "c8 node scripts/test.mjs",
+    "test:integration": "node scripts/build.mjs --integration && vscode-test --label integration",
+    "shellcheck": "shellcheck --shell=sh src/launcher/launcher.sh",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test:coverage",
+    "package": "node scripts/package.mjs",
+    "brand": "node scripts/brand.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "canary": "node scripts/canary.mjs",
+    "vscode:prepublish": "node scripts/build.mjs --production",
+    "vscode:uninstall": "node ./dist/uninstall.js",
+    "test:e2e": "node scripts/build.mjs --integration && vscode-test --label e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/mocha": "10.0.10",
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.96.0",
+    "@vscode/test-cli": "0.0.15",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.1.0",
+    "c8": "12.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "jsonc-parser": "3.3.1",
+    "mocha": "12.0.3",
+    "ovsx": "1.3.0",
+    "polygon-clipping": "0.15.7",
+    "prettier": "3.9.10",
+    "svg2ttf": "6.1.0",
+    "svgicons2svgfont": "16.0.0",
+    "tsx": "4.23.15",
+    "ttf2woff": "3.0.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

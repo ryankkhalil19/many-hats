@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Many Hats sidebar preview</title>
+    <!--
+  Design harness: renders the sidebar (dist/webview.js, src/webview/sidebar.css) at sidebar width,
+  with editor-like theme colours and a fake extension behind it. Made-up data only.
+  Build first (npm run build), then open over http or file://.
+    ?theme=light     light theme (default dark)
+    ?shot=1          no controls: for screenshots (npm run screenshots)
+-->
+    <style>
+      :root,
+      body.dark {
+        --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --vscode-font-size: 13px;
+        --vscode-foreground: #cccccc;
+        --vscode-descriptionForeground: #9d9d9d;
+        --vscode-sideBar-background: #181818;
+        --vscode-sideBarSectionHeader-foreground: #cccccc;
+        --vscode-focusBorder: #0078d4;
+        --vscode-icon-foreground: #cccccc;
+        --vscode-toolbar-hoverBackground: #5a5d5e50;
+        --vscode-button-background: #0078d4;
+        --vscode-button-foreground: #ffffff;
+        --vscode-button-hoverBackground: #026ec1;
+        --vscode-button-secondaryBackground: #313131;
+        --vscode-button-secondaryForeground: #cccccc;
+        --vscode-button-secondaryHoverBackground: #3c3c3c;
+        --vscode-badge-background: #616161;
+        --vscode-badge-foreground: #f8f8f8;
+        --vscode-input-background: #313131;
+        --vscode-input-foreground: #cccccc;
+        --vscode-input-border: #3c3c3c;
+        --vscode-input-placeholderForeground: #989898;
+        --vscode-list-hoverBackground: #2a2d2e;
+        --vscode-list-activeSelectionBackground: #04395e;
+        --vscode-list-activeSelectionForeground: #ffffff;
+        --vscode-list-inactiveSelectionBackground: #37373d;
+        --vscode-menu-background: #1f1f1f;
+        --vscode-menu-foreground: #cccccc;
+        --vscode-menu-selectionBackground: #0078d4;
+        --vscode-menu-selectionForeground: #ffffff;
+        --vscode-menu-separatorBackground: #454545;
+        --vscode-menu-border: #454545;
+        --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+        --vscode-charts-green: #89d185;
+        --vscode-charts-yellow: #cca700;
+        --vscode-charts-red: #f14c4c;
+        --vscode-errorForeground: #f85149;
+        --vscode-editor-findMatchHighlightBackground: #623315;
+        --vscode-inputValidation-warningBackground: #352a05;
+        --vscode-inputValidation-warningBorder: #b89500;
+      }
+      body.light {
+        --vscode-foreground: #3b3b3b;
+        --vscode-descriptionForeground: #717171;
+        --vscode-sideBar-background: #f8f8f8;
+        --vscode-sideBarSectionHeader-foreground: #3b3b3b;
+        --vscode-focusBorder: #005fb8;
+        --vscode-icon-foreground: #3b3b3b;
+        --vscode-toolbar-hoverBackground: #b8b8b850;
+        --vscode-button-background: #005fb8;
+        --vscode-button-hoverBackground: #0258a8;
+        --vscode-button-secondaryBackground: #e5e5e5;
+        --vscode-button-secondaryForeground: #3b3b3b;
+        --vscode-button-secondaryHoverBackground: #cccccc;
+        --vscode-badge-background: #cccccc;
+        --vscode-badge-foreground: #3b3b3b;
+        --vscode-input-background: #ffffff;
+        --vscode-input-foreground: #3b3b3b;
+        --vscode-input-border: #cecece;
+        --vscode-input-placeholderForeground: #767676;
+        --vscode-list-hoverBackground: #f2f2f2;
+        --vscode-list-activeSelectionBackground: #e8e8e8;
+        --vscode-list-activeSelectionForeground: #000000;
+        --vscode-list-inactiveSelectionBackground: #e4e6f1;
+        --vscode-menu-background: #ffffff;
+        --vscode-menu-foreground: #3b3b3b;
+        --vscode-menu-selectionBackground: #005fb8;
+        --vscode-menu-border: #cecece;
+        --vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+        --vscode-charts-green: #388a34;
+        --vscode-charts-yellow: #bf8803;
+        --vscode-charts-red: #e51400;
+        --vscode-editor-findMatchHighlightBackground: #f8c9ab;
+        --vscode-inputValidation-warningBackground: #f6edc6;
+        --vscode-inputValidation-warningBorder: #bf8803;
+      }
+      html {
+        background: #0e0e0e;
+      }
+      body.light {
+        background: #dcdcdc;
+      }
+      body.shot {
+        background: var(--vscode-sideBar-background);
+      }
+      .frame {
+        width: 320px;
+        min-height: 100vh;
+        margin: 0 auto 0 0;
+        background: var(--vscode-sideBar-background);
+        border-right: 1px solid #2b2b2b;
+      }
+      body.shot .frame {
+        border-right: 0;
+        min-height: 0;
+      }
+      .viewtitle {
+        display: flex;
+        align-items: center;
+        height: 35px;
+        padding: 0 8px 0 20px;
+        font: 11px var(--vscode-font-family);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--vscode-foreground);
+      }
+      #log {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        width: 300px;
+        max-height: 40vh;
+        overflow: auto;
+        font:
+          11px ui-monospace,
+          Menlo,
+          monospace;
+        color: #9d9d9d;
+        background: #111;
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 8px;
+        white-space: pre-wrap;
+      }
+      #theme {
+        position: fixed;
+        right: 12px;
+        top: 12px;
+      }
+      body.shot #log,
+      body.shot #theme {
+        display: none;
+      }
+    </style>
+    <link rel="stylesheet" href="../../src/webview/sidebar.css" />
+  </head>
+  <body class="dark">
+    <button id="theme">Toggle light / dark</button>
+    <div class="frame">
+      <div class="viewtitle">ACCOUNTS &amp; SESSIONS</div>
+      <div id="app"></div>
+    </div>
+    <pre id="log">messages to the extension:</pre>
+    <script>
+      const params = new URLSearchParams(location.search);
+      if (params.get('theme') === 'light') document.body.className = 'light';
+      if (params.get('shot')) {
+        document.body.classList.add('shot');
+        // The page behind the sidebar takes its colour, so a screenshot has no border to crop.
+        addEventListener(
+          'load',
+          () => (document.documentElement.style.background = getComputedStyle(document.body).backgroundColor),
+        );
+      }
+      // A fake extension: answers the webview like the real one does, with made-up data.
+      const now = Date.now();
+      const min = 60e3,
+        hr = 3600e3,
+        day = 86400e3;
+      const U = (pct, hrs) => ({
+        percent: pct,
+        resetsAt: now + hrs * hr,
+        reset: false,
+        level: pct >= 90 ? 'critical' : pct >= 70 ? 'warning' : 'normal',
+        active: false,
+      });
+      const id = (n) =>
+        `${String(n).repeat(8)}-${String(n).repeat(4)}-4${String(n).repeat(3)}-8${String(n).repeat(3)}-${String(n).repeat(12)}`;
+      const state = {
+        pick: 'default',
+        folders: ['shop-api'],
+        notices: [],
+        accounts: [
+          {
+            name: 'default',
+            email: 'you@example.com',
+            plan: 'Pro',
+            signedIn: true,
+            isPick: true,
+            openHere: 2,
+            usage: {
+              fetchedAtMs: now - 2 * min,
+              limits: [
+                { label: 'Session (5hr)', kind: 'session', ...U(34, 3.2), active: true },
+                { label: 'Weekly (7 day)', kind: 'weekly_all', ...U(18, 120) },
+              ],
+            },
+          },
+          {
+            name: 'work',
+            email: 'you@work.example',
+            plan: 'Team',
+            tier: 'Max 5x',
+            signedIn: true,
+            isPick: false,
+            openHere: 1,
+            usage: {
+              fetchedAtMs: now - 6 * min,
+              limits: [
+                { label: 'Session (5hr)', kind: 'session', ...U(76, 1.4), active: true },
+                { label: 'Weekly (7 day)', kind: 'weekly_all', ...U(41, 52) },
+                { label: 'Opus limit', kind: 'weekly_scoped', ...U(12, 52) },
+              ],
+            },
+          },
+          {
+            name: 'client',
+            expectedEmail: 'you@client.example',
+            signedIn: false,
+            isPick: false,
+            openHere: 0,
+          },
+        ],
+        sessions: [
+          {
+            id: id(1),
+            title: 'Fix flaky checkout test',
+            updatedAt: now - 20e3,
+            account: 'default',
+            running: { status: 'busy', here: true },
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(2),
+            title: 'Refactor auth middleware',
+            updatedAt: now - 4 * min,
+            account: 'work',
+            running: { status: 'busy', here: true },
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(3),
+            title: 'Draft release notes',
+            updatedAt: now - 12 * min,
+            account: 'default',
+            running: { status: 'idle', here: true },
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(4),
+            title: 'Investigate memory spike',
+            updatedAt: now - 3 * hr,
+            account: 'work',
+            running: null,
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(5),
+            title: 'Rate limits for the partner API',
+            updatedAt: now - 1 * day,
+            account: 'work',
+            running: { status: 'idle', here: false },
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(6),
+            title: 'Weekly report script',
+            updatedAt: now - 2 * day,
+            account: 'default',
+            running: null,
+            movingTo: 'work',
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(7),
+            title: 'Old prototype',
+            updatedAt: now - 9 * day,
+            account: null,
+            running: null,
+            movingTo: null,
+            archived: false,
+            folder: 'shop-api',
+          },
+          {
+            id: id(8),
+            title: 'Spike: queue migration',
+            updatedAt: now - 20 * day,
+            account: 'work',
+            running: null,
+            movingTo: null,
+            archived: true,
+            folder: 'shop-api',
+          },
+        ],
+      };
+      const log = (m) => {
+        document.getElementById('log').textContent += '\n' + JSON.stringify(m);
+      };
+      const send = () => window.postMessage({ type: 'state', state: JSON.parse(JSON.stringify(state)) }, '*');
+      const find = (sid) => state.sessions.find((s) => s.id === sid);
+      window.acquireVsCodeApi = () => ({
+        getState: () => (params.get('shot') ? null : JSON.parse(sessionStorage.getItem('st') || 'null')),
+        setState: (s) => sessionStorage.setItem('st', JSON.stringify(s)),
+        postMessage: (m) => {
+          log(m);
+          setTimeout(() => {
+            const s = m.id && find(m.id);
+            if (m.type === 'rename' && s) s.title = m.title;
+            if (m.type === 'archive' && s) s.archived = m.archived;
+            if (m.type === 'delete' && s && !s.running) state.sessions.splice(state.sessions.indexOf(s), 1);
+            if (m.type === 'move' && s) s.movingTo = m.account === s.account ? null : m.account;
+            if (m.type === 'pick') {
+              for (const a of state.accounts) a.isPick = a.name === m.account;
+              state.pick = m.account;
+            }
+            if (m.type === 'new')
+              state.sessions.unshift({
+                id: crypto.randomUUID(),
+                title: 'New session',
+                updatedAt: Date.now(),
+                account: m.account,
+                running: { status: 'idle', here: true },
+                movingTo: null,
+                archived: false,
+                folder: 'shop-api',
+              });
+            if (m.type === 'open' && s) {
+              s.running = s.running || { status: 'idle', here: true };
+              s.updatedAt = Date.now();
+              if (m.account && m.account !== s.account) s.account = m.account;
+              s.movingTo = null;
+            }
+            send();
+          }, 60);
+        },
+      });
+      document.getElementById('theme').onclick = () => {
+        document.body.classList.toggle('light');
+        document.body.classList.toggle('dark');
+      };
+    </script>
+    <script src="../../dist/webview.js"></script>
+  </body>
+</html>

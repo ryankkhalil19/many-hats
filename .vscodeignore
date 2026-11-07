@@ -1,0 +1,15 @@
+# Only the bundled extension, its assets and the store page ship in the package.
+# scripts/package.mjs checks the result against an allowlist.
+**
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+!dist/extension.js
+!dist/uninstall.js
+!dist/webview.js
+!dist/sidebar.css
+!dist/launcher.sh
+!media/icon.png
+!media/activity.svg
+!media/glyphs.woff

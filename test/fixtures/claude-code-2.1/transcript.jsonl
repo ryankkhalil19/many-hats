@@ -1,0 +1,5 @@
+{"type":"session-owner","accountUuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","sessionId":"11111111-1111-4111-8111-111111111111"}
+{"type":"user","message":{"role":"user","content":"The login fails after a token refresh"},"sessionId":"11111111-1111-4111-8111-111111111111"}
+{"type":"ai-title","aiTitle":"Fix login after token refresh","sessionId":"11111111-1111-4111-8111-111111111111"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Looking at the refresh code."}]},"sessionId":"11111111-1111-4111-8111-111111111111"}
+{"type":"last-prompt","lastPrompt":"The login fails after a token refresh","sessionId":"11111111-1111-4111-8111-111111111111"}

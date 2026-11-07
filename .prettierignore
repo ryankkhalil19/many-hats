@@ -1,0 +1,11 @@
+dist/
+out/
+coverage/
+.vscode-test/
+node_modules/
+media/
+brand/**/*.svg
+docs/images/
+test/fixtures/
+package-lock.json
+CHANGELOG.md

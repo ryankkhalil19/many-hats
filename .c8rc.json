@@ -1,0 +1,19 @@
+{
+  "all": true,
+  "src": ["src"],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/ui/**",
+    "src/extension.ts",
+    "src/webview/main.ts",
+    "src/webview/menu.ts",
+    "src/platform/types.ts",
+    "src/**/*.d.ts"
+  ],
+  "reporter": ["text-summary", "text", "lcov"],
+  "check-coverage": true,
+  "lines": 90,
+  "statements": 90,
+  "functions": 90,
+  "branches": 80
+}

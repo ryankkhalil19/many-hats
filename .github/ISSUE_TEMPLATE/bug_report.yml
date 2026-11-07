@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in Many Hats doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Run **Many Hats: Collect Diagnostics** first: it copies a report with no emails, tokens or account names, ready to paste below.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add an account called work
+        2. Open a new session on it
+        3. Reload the window
+        4. …
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: 'Paste the report from "Many Hats: Collect Diagnostics".'
+      render: markdown
+    validations:
+      required: true

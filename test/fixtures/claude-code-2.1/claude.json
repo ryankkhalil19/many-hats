@@ -1,0 +1,28 @@
+{
+  "numStartups": 12,
+  "hasCompletedOnboarding": true,
+  "projects": { "/Users/me/app": { "hasTrustDialogAccepted": true } },
+  "oauthAccount": {
+    "accountUuid": "6ec4376e-92dd-4d4f-991a-37a622d8d1dd",
+    "emailAddress": "dev@example.com",
+    "organizationUuid": "0b1c2d3e-0000-4000-8000-000000000000",
+    "organizationName": "Example Co",
+    "organizationType": "claude_team",
+    "organizationRole": "member",
+    "userRateLimitTier": "default_claude_max_5x"
+  },
+  "cachedUsageUtilization": {
+    "fetchedAtMs": 1794034680000,
+    "accountUuid": "6ec4376e-92dd-4d4f-991a-37a622d8d1dd",
+    "utilization": {
+      "five_hour": { "utilization": 26, "resets_at": "2026-11-06T10:39:59.875905+00:00" },
+      "seven_day": { "utilization": 3, "resets_at": "2026-11-13T05:59:59.875923+00:00" },
+      "limits": [
+        { "kind": "session", "group": "session", "percent": 26, "severity": "normal", "resets_at": "2026-11-06T10:39:59.875905+00:00", "scope": null, "is_active": true },
+        { "kind": "weekly_all", "group": "weekly", "percent": 3, "severity": "normal", "resets_at": "2026-11-13T05:59:59.875923+00:00", "scope": null, "is_active": false },
+        { "kind": "weekly_scoped", "group": "weekly", "percent": 0, "severity": "normal", "resets_at": "2026-11-13T06:00:00+00:00", "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null }, "is_active": false }
+      ],
+      "spend": { "used": { "amount_minor": 1234, "currency": "USD", "exponent": 2 }, "percent": 12, "enabled": false }
+    }
+  }
+}

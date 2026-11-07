@@ -1,0 +1,40 @@
+name: Canary
+
+# Every night, check the latest Claude Code for everything Many Hats relies on. When something
+# changed, open an issue (or comment on the open one) so it's fixed before users notice.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - id: canary
+        shell: bash
+        continue-on-error: true
+        run: node scripts/canary.mjs | tee canary.txt
+      - if: steps.canary.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="$(printf 'The nightly canary found a change in Claude Code that Many Hats relies on.\n\n```\n%s\n```\n\nRun: %s/%s/actions/runs/%s' "$(cat canary.txt)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label canary --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --label canary --title "Canary: Claude Code changed something Many Hats relies on" --body "$body"
+          fi
+          exit 1

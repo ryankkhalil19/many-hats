@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#312C85"/>
+      <stop offset="1" stop-color="#14113A"/>
+    </linearGradient>
+    <mask id="gap" maskUnits="userSpaceOnUse" x="-64" y="-64" width="384" height="384">
+      <rect x="-64" y="-64" width="384" height="384" fill="#fff"/>
+      <path fill="#000" stroke="#000" stroke-width="16" stroke-linejoin="round" d="M98,206 C98,174 122,150 156,150 C188,150 210,168 212,190 Q236,188 252,200 Q252,214 232,214 L104,214 Q98,214 98,206 Z"/>
+    </mask>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <g transform="translate(128 128) scale(0.86) translate(-136 -128)">
+    <g mask="url(#gap)">
+      <path fill="#E0E7FF" d="M66,42 H126 Q137,42 137.6,53 L142,140 H50 L54.4,53 Q55,42 66,42 Z"/>
+      <path fill="#6366F1" d="M51.9,114 H140.1 L141.2,138 H50.8 Z"/>
+      <path fill="#E0E7FF" d="M20,148 Q20,140 30,140 H162 Q172,140 172,148 Q172,156 162,156 H30 Q20,156 20,148 Z"/>
+    </g>
+    <path fill="#5EEAD4" d="M98,206 C98,174 122,150 156,150 C188,150 210,168 212,190 Q236,188 252,200 Q252,214 232,214 L104,214 Q98,214 98,206 Z"/>
+    <path fill="#2DD4BF" d="M212,190 Q236,188 252,200 Q252,214 232,214 L208,214 Z"/>
+    <path fill="none" stroke="#14B8A6" stroke-width="5" stroke-linecap="round" d="M156,152 Q144,178 146,212"/>
+    <circle cx="156" cy="151" r="7" fill="#14B8A6"/>
+  </g>
+</svg>
