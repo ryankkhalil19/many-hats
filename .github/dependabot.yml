@@ -7,6 +7,16 @@ updates:
     groups:
       dev-dependencies:
         patterns: ['*']
+    ignore:
+      # Pinned on purpose:
+      # @types/vscode matches the oldest supported editor (engines.vscode), so no newer API slips in.
+      - dependency-name: '@types/vscode'
+      # @types/node matches the Node version inside supported editors.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # TypeScript majors wait until typescript-eslint supports them.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
