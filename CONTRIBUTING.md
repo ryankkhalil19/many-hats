@@ -16,19 +16,26 @@ Open the folder in your editor and press **F5** ("Run Many Hats"). A second edit
 
 ## Checks
 
-`npm run check` runs everything CI runs except the integration tests:
+`npm run check` runs the fast checks:
 
 - `npm run typecheck`: strict TypeScript, for the extension, the webview and the tests;
 - `npm run lint`: ESLint, including the rules that keep the layers apart;
 - `npm run format:check`: Prettier;
+- `npm run links`: every relative link and `#anchor` in the Markdown files (`npm run links -- --external` also checks links to other sites);
 - `npm run test:coverage`: unit, contract, launcher and fault-injection tests, with coverage thresholds.
 
-There are also:
+CI also runs:
 
-- `npm run test:integration`: Many Hats in a real VS Code with the real Claude Code extension. It runs against a throwaway home folder, so it never touches your accounts;
 - `npm run shellcheck`: the launcher (`brew install shellcheck`);
 - `npm run package`: one `.vsix` per Mac target, checked against a file allowlist and a size budget;
-- `npm run canary`: checks the latest Claude Code for everything Many Hats relies on.
+- `npm run test:integration`: Many Hats alone in VS Code 1.96, the oldest version it supports, with Claude Code turned off.
+
+Before a release, also run:
+
+- `npm run test:e2e`: Many Hats with the real Claude Code extension in the latest VS Code. It opens real Claude Code tabs, signed out, and checks which account each one started on;
+- `npm run canary`: checks the latest Claude Code for everything Many Hats relies on. CI also runs it every night.
+
+The editor tests use a throwaway home folder and editor profile, so they never touch your accounts or settings.
 
 ## How the code is organised
 
