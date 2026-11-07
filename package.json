@@ -198,8 +198,8 @@
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/mocha": "10.0.10",
-    "@types/node": "20.19.43",
-    "@types/vscode": "1.96.0",
+    "@types/node": "26.6.6",
+    "@types/vscode": "1.144.0",
     "@vscode/test-cli": "0.0.15",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.1.0",
@@ -216,7 +216,7 @@
     "svgicons2svgfont": "16.0.0",
     "tsx": "4.23.15",
     "ttf2woff": "3.0.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "typescript-eslint": "8.72.1"
   }
 }
