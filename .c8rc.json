@@ -7,6 +7,12 @@
     "src/extension.ts",
     "src/webview/main.ts",
     "src/webview/menu.ts",
+    "src/webview/sidebar.ts",
+    "src/webview/render.ts",
+    "src/webview/selection.ts",
+    "src/webview/actions.ts",
+    "src/webview/events.ts",
+    "src/webview/keyboard.ts",
     "src/platform/types.ts",
     "src/**/*.d.ts"
   ],

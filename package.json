@@ -185,6 +185,7 @@
     "links": "node scripts/check-links.mjs",
     "test": "node scripts/test.mjs",
     "test:coverage": "c8 node scripts/test.mjs",
+    "test:webview": "node scripts/build.mjs && node --test --test-reporter=spec --test-timeout=60000 test/webview/sidebar.test.mjs",
     "test:integration": "node scripts/build.mjs --integration && vscode-test --label integration",
     "shellcheck": "shellcheck --shell=sh src/launcher/launcher.sh",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run links && npm run test:coverage",

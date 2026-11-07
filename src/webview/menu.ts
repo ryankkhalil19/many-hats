@@ -1,18 +1,6 @@
 /** The sidebar's pop-up menus: keyboard navigable, closed by Escape, Tab, a click outside or a resize. */
 import { esc } from './format';
-
-export type MenuItem =
-  | { sep: true }
-  | { header: string }
-  | {
-      label: string;
-      icon?: string;
-      detail?: string;
-      kbd?: string;
-      danger?: boolean;
-      disabled?: boolean;
-      run: () => void;
-    };
+import type { MenuItem } from './menuItems';
 
 interface OpenMenu {
   el: HTMLElement;

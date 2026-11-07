@@ -28,6 +28,7 @@ CI also runs:
 
 - `npm run shellcheck`: the launcher (`brew install shellcheck`);
 - `npm run package`: one `.vsix` per Mac target, checked against a file allowlist and a size budget;
+- `npm run test:webview`: the sidebar in headless Chrome, with real clicks and keys, against `tools/preview` (needs Google Chrome);
 - `npm run test:integration`: Many Hats alone in VS Code 1.96, the oldest version it supports, with Claude Code turned off.
 
 Before a release, also run:

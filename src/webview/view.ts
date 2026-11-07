@@ -17,6 +17,28 @@ export interface UiState {
   hiddenLimits: Record<string, boolean>;
 }
 
+const FILTERS: readonly string[] = ['all', 'open', 'archived'] satisfies Filter[];
+
+/** The UI state the view saved last time, checked: anything unexpected falls back to the default. */
+export function restoreUi(saved: unknown): UiState {
+  const s = saved !== null && typeof saved === 'object' ? (saved as Record<string, unknown>) : {};
+  return {
+    collapsed: flags(s.collapsed),
+    filter: typeof s.filter === 'string' && FILTERS.includes(s.filter) ? (s.filter as Filter) : 'all',
+    query: typeof s.query === 'string' ? s.query : '',
+    selected: typeof s.selected === 'string' ? s.selected : null,
+    hiddenLimits: flags(s.hiddenLimits),
+  };
+}
+
+/** The keys set to true; anything else reads as false anyway. */
+function flags(value: unknown): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  if (value !== null && typeof value === 'object')
+    for (const [k, v] of Object.entries(value)) if (v === true) out[k] = true;
+  return out;
+}
+
 export function account(state: SidebarState, name: string | null | undefined): AccountView | undefined {
   return state.accounts.find((a) => a.name === name);
 }

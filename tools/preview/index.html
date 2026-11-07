@@ -318,6 +318,7 @@
         getState: () => (params.get('shot') ? null : JSON.parse(sessionStorage.getItem('st') || 'null')),
         setState: (s) => sessionStorage.setItem('st', JSON.stringify(s)),
         postMessage: (m) => {
+          (window.posted ??= []).push(m); // read by the webview tests
           log(m);
           setTimeout(() => {
             const s = m.id && find(m.id);

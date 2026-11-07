@@ -17,13 +17,20 @@ import {
   filterTabs,
   limitRow,
   notices,
+  restoreUi,
   row,
   sectionHead,
   sessionGroups,
   visibleSessions,
   type UiState,
 } from '../../src/webview/view';
-import type { AccountView, SessionView, SidebarState } from '../../src/shared/protocol';
+import {
+  accountMenuItems,
+  sessionMenuItems,
+  type MenuActions,
+  type MenuItem,
+} from '../../src/webview/menuItems';
+import type { AccountView, SessionView, SidebarState, ToHost } from '../../src/shared/protocol';
 import { A, B, C } from '../helpers/home';
 
 const NOW = Date.parse('2026-11-06T12:00:00Z');
@@ -208,4 +215,135 @@ test('view: notices with an action', () => {
   ]);
   assert.match(html, /notice error/);
   assert.match(html, /data-command="manyHats\.repair"/);
+});
+
+test('view: the saved UI state is checked when the view comes back', () => {
+  assert.deepEqual(restoreUi(undefined), ui());
+  assert.deepEqual(restoreUi('garbage'), ui());
+  assert.deepEqual(
+    restoreUi({ collapsed: { accounts: true, sessions: false }, filter: 'open', query: 'bug', selected: A }),
+    ui({ collapsed: { accounts: true }, filter: 'open', query: 'bug', selected: A }),
+  );
+  assert.deepEqual(
+    restoreUi({ filter: 'everything', query: 7, selected: {}, hiddenLimits: { 'work:Opus limit': 'yes' } }),
+    ui(),
+    'wrong types and unknown filters fall back to the defaults',
+  );
+});
+
+/** The menu's items as text, and a way to run one: what a click on it would do. */
+function recorder(): { act: MenuActions; calls: unknown[] } {
+  const calls: unknown[] = [];
+  return {
+    calls,
+    act: {
+      post: (m: ToHost) => calls.push(m),
+      open: (id, account) => calls.push(['open', id, account]),
+      rename: (id) => calls.push(['rename', id]),
+    },
+  };
+}
+const describe = (items: MenuItem[]): string[] =>
+  items.map((it) =>
+    'sep' in it
+      ? '---'
+      : 'header' in it
+        ? `# ${it.header}`
+        : `${it.label}${it.detail ? ` (${it.detail})` : ''}${it.disabled ? ' [off]' : ''}`,
+  );
+const run = (items: MenuItem[], label: string, detail?: string): void => {
+  const it = items.find(
+    (x) => 'run' in x && x.label === label && (detail === undefined || x.detail === detail),
+  );
+  assert.ok(it && 'run' in it, `no item ${label}`);
+  it.run();
+};
+
+test('menus: a session — open on signed-in accounts, move to any, delete only when closed', () => {
+  const s = state({
+    accounts: [
+      account({ email: 'me@example.com', isPick: true }),
+      account({ name: 'work', email: 'me@work.example' }),
+      account({ name: 'client', signedIn: false, expectedEmail: 'me@client.example' }),
+    ],
+  });
+  const busy = session({ id: B, account: 'work', running: { status: 'busy', here: true } });
+  const { act, calls } = recorder();
+  const items = sessionMenuItems(s, busy, act);
+  assert.deepEqual(describe(items), [
+    'Open in a tab',
+    'Rename',
+    'Archive',
+    'Copy session ID',
+    '---',
+    '# Open on account',
+    'me@example.com (default)',
+    'me@work.example (its own)',
+    '# Move to account',
+    'me@example.com (default)',
+    'me@work.example (current) [off]',
+    'me@client.example (not signed in)',
+    '---',
+    'Delete (close it first) [off]',
+  ]);
+  run(items, 'Open in a tab');
+  run(items, 'me@example.com', 'default');
+  run(items, 'Rename');
+  run(items, 'me@client.example', 'not signed in');
+  run(items, 'Archive');
+  run(items, 'Copy session ID');
+  assert.deepEqual(calls, [
+    ['open', B, undefined],
+    ['open', B, 'default'],
+    ['rename', B],
+    { type: 'move', id: B, account: 'client' },
+    { type: 'archive', id: B, archived: true },
+    { type: 'copyId', id: B },
+  ]);
+
+  const moving = sessionMenuItems(s, session({ archived: true, movingTo: 'work' }), act);
+  const text = describe(moving);
+  assert.ok(text.includes('Unarchive'));
+  assert.ok(
+    text.includes('me@work.example (current) [off]'),
+    'a session on its way to an account is already there',
+  );
+  assert.ok(text.includes('me@example.com (its own)'), 'until it starts, it opens on its own account');
+  assert.ok(text.includes('Delete…'));
+  calls.length = 0;
+  run(moving, 'Unarchive');
+  run(moving, 'Delete…');
+  assert.deepEqual(calls, [
+    { type: 'archive', id: A, archived: false },
+    { type: 'delete', id: A },
+  ]);
+});
+
+test('menus: an account — the default can’t be removed; signed out, it can only sign in', () => {
+  const { act, calls } = recorder();
+  assert.deepEqual(describe(accountMenuItems(account({ isPick: true }), act)), [
+    'New session',
+    'New tabs start on this account [off]',
+    'Sign in again…',
+    'Usage details on claude.ai',
+  ]);
+  const out = accountMenuItems(account({ name: 'client', signedIn: false }), act);
+  assert.deepEqual(describe(out), [
+    'New session [off]',
+    'Use for new tabs',
+    'Sign in…',
+    'Usage details on claude.ai',
+    '---',
+    'Remove account…',
+  ]);
+  for (const label of ['Use for new tabs', 'Sign in…', 'Usage details on claude.ai', 'Remove account…'])
+    run(out, label);
+  run(accountMenuItems(account({ name: 'work' }), act), 'New session');
+  assert.deepEqual(calls, [
+    { type: 'pick', account: 'client' },
+    { type: 'signIn', account: 'client' },
+    { type: 'usageDetails' },
+    { type: 'removeAccount', account: 'client' },
+    { type: 'new', account: 'work' },
+  ]);
 });

@@ -103,6 +103,24 @@ Each reader reports how many records it understood (`ok`) and how many it found 
 - **Matching:** it pairs each process with its live-session record and adopts first-seen sessions.
 - **When it scans:** it rescans when Claude Code's session records change (`fs.watch`), and on a timer: 2 s while the sidebar is visible, 6 s otherwise.
 
+## The sidebar
+
+The extension (`ui/sidebar/`) sends the webview one `SidebarState` at a time and checks every message it gets back (`shared/protocol.ts`). The webview never sees a path, a token or a process. Its CSP allows only its own script (by nonce) and its own stylesheet, and no inline styles, so bar widths and colours are set from script.
+
+```
+webview/main.ts        entry: wires the parts below, then says it's ready
+        sidebar.ts     the state: what the extension sent, the UI's own choices, what's in progress
+        view.ts        the markup, as pure functions of the state
+        render.ts      puts the markup on screen and keeps scroll and focus
+        selection.ts   the selected row, and roving focus (the list is one tab stop)
+        actions.ts     open, rename in place, and the menus
+        menuItems.ts   what each menu offers, as pure functions
+        menu.ts        the pop-up menu widget
+        events.ts      clicks, right-clicks and search;  keyboard.ts  the keys
+```
+
+A state that arrives while the user is renaming or has a menu open waits, and is shown when they finish. **Tests:** the pure parts (`view.ts`, `menuItems.ts`, `format.ts`) have unit tests. `test/webview/` drives the whole sidebar in headless Chrome against `tools/preview`, whose stand-in extension answers like the real one.
+
 ## Releases
 
 See [RELEASING.md](RELEASING.md).
