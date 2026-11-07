@@ -31,7 +31,7 @@ test('webview messages: the known ones pass, checked field by field', () => {
     command: 'manyHats.repair',
   });
   assert.deepEqual(parseToHost({ type: 'copyId', id: A }), { type: 'copyId', id: A });
-  for (const t of ['new', 'pick', 'signIn', 'removeAccount'])
+  for (const t of ['new', 'pick', 'signIn', 'removeAccount', 'refreshUsage'])
     assert.deepEqual(parseToHost({ type: t, account: 'work' }), { type: t, account: 'work' });
 });
 

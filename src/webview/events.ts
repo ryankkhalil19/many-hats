@@ -83,6 +83,9 @@ export function bindPointer(sb: Sidebar): void {
       case 'addAccount':
         sb.post({ type: 'addAccount' });
         break;
+      case 'refreshUsage':
+        if (t.getAttribute('aria-disabled') !== 'true') sb.post({ type: 'refreshUsage', account: acct });
+        break;
       case 'notice':
         sb.post({ type: 'notice', command: t.dataset.command ?? '' });
         break;

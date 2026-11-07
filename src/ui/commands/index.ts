@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { App } from '../app';
 import { guard } from '../guard';
-import { addAccount, removeAccount, removeEverything, signInPicker } from './accounts';
+import { addAccount, refreshAllUsage, removeAccount, removeEverything, signInPicker } from './accounts';
 import { collectDiagnostics, repair, showClaudeCode } from './support';
 import { choose, moveTab, openTabOn, showTabs } from './tabs';
 
@@ -20,6 +20,7 @@ export function registerCommands(app: App): vscode.Disposable[] {
     reg('manyHats.refresh', () => {
       void app.scanner.scan();
       app.refresh();
+      void refreshAllUsage(app);
     }),
     reg('manyHats.repair', () => repair(app)),
     reg('manyHats.collectDiagnostics', () => collectDiagnostics(app)),

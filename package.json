@@ -97,7 +97,7 @@
       },
       {
         "command": "manyHats.refresh",
-        "title": "Refresh",
+        "title": "Refresh Sessions and Usage",
         "category": "Many Hats",
         "icon": "$(refresh)"
       },
@@ -165,12 +165,6 @@
           "command": "manyHats.collectDiagnostics",
           "when": "view == manyHats.sidebar",
           "group": "more@2"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "manyHats.refresh",
-          "when": "false"
         }
       ]
     }

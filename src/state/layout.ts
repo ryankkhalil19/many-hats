@@ -10,6 +10,7 @@
  *   bin/launcher               Claude Code's process wrapper (src/launcher/launcher.sh)
  *   logs/launcher.log          the launcher's decisions, one line per Claude start
  *   backups/                   file versions a sync had to set aside
+ *   locks/usage-<name>         a window refreshing an account's usage (services/usageRefresh.ts)
  *   VERSION                    the layout's version, for future migrations
  */
 import * as fs from 'node:fs';
@@ -34,6 +35,7 @@ export interface Layout {
   logsDir: string;
   launcherLog: string;
   backupsDir: string;
+  locksDir: string;
   versionFile: string;
 }
 
@@ -52,6 +54,7 @@ export function layoutFor(home: string): Layout {
     logsDir: path.join(root, 'logs'),
     launcherLog: path.join(root, 'logs', 'launcher.log'),
     backupsDir: path.join(root, 'backups'),
+    locksDir: path.join(root, 'locks'),
     versionFile: path.join(root, 'VERSION'),
   };
 }

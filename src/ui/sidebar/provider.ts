@@ -45,8 +45,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         // no transcripts yet
       }
     }
-    // Usage caches, running state and relative times move on by themselves.
-    this.ticker = setInterval(() => this.schedule(0), 5000);
+    // Usage caches, running state and relative times move on by themselves. While the sidebar
+    // shows, stale usage is refreshed too (one account at a time; see services/usageRefresh.ts).
+    this.ticker = setInterval(() => {
+      this.schedule(0);
+      if (this.view?.visible) this.app.usage.tick();
+    }, 5000);
   }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -82,7 +86,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
     webview.onDidReceiveMessage((m: unknown) => void this.onMessage(m));
     webviewView.onDidChangeVisibility(() => {
       this.app.scanner.setInteractive(webviewView.visible);
-      if (webviewView.visible) void this.push(true);
+      if (webviewView.visible) {
+        void this.push(true);
+        this.app.usage.tick();
+      }
     });
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) this.view = undefined;
@@ -207,6 +214,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         return false;
       case 'removeAccount':
         await removeAccount(app, m.account);
+        return false;
+      case 'refreshUsage':
+        void app.usage.refresh(m.account); // takes a few seconds; it updates the view as it goes
         return false;
       case 'usageDetails':
         await vscode.env.openExternal(vscode.Uri.parse(USAGE_PAGE));

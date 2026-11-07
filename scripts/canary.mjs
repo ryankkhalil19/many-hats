@@ -3,7 +3,7 @@
 // point Many Hats relies on. CI runs it nightly and opens an issue when one changes, so a Claude Code
 // update that would break Many Hats is known before users report it.
 //   node scripts/canary.mjs [--json]
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -49,6 +49,45 @@ function helpOf(cli, ...args) {
     return execFileSync(cli.binary, [...args, '--help'], { env, encoding: 'utf8', timeout: 60_000 });
   } catch {
     return '';
+  }
+}
+
+/** The usage refresh's command line: the same as USAGE_ARGS in src/services/usageRefresh.ts. */
+export const USAGE_ARGS = [
+  '-p',
+  '/usage',
+  '--no-session-persistence',
+  '--settings',
+  '{"disableAllHooks":true}',
+];
+
+/**
+ * Runs the usage refresh exactly as Many Hats does, signed out, in a throwaway home whose settings
+ * hold a SessionStart hook that leaves a mark, so the run shows whether hooks stayed off.
+ */
+function usageRunOf(cli) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'many-hats-canary-usage-'));
+  try {
+    const config = path.join(home, 'config');
+    const mark = path.join(home, 'hook-ran');
+    fs.mkdirSync(config);
+    fs.writeFileSync(
+      path.join(config, 'settings.json'),
+      JSON.stringify({
+        hooks: { SessionStart: [{ hooks: [{ type: 'command', command: `touch "${mark}"` }] }] },
+      }),
+    );
+    const env = {
+      PATH: process.env.PATH ?? '',
+      HOME: home,
+      CLAUDE_CONFIG_DIR: config,
+      DISABLE_AUTOUPDATER: '1',
+      DISABLE_TELEMETRY: '1',
+    };
+    const r = spawnSync(cli.binary, USAGE_ARGS, { cwd: home, env, encoding: 'utf8', timeout: 90_000 });
+    return { code: r.status, stdout: r.stdout ?? '', hookRan: fs.existsSync(mark) };
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
   }
 }
 
@@ -105,6 +144,24 @@ export function check(manifest, mainSource) {
   return results;
 }
 
+/** The usage refresh, from a run of it (usageRunOf). */
+export function checkUsage(run) {
+  return [
+    {
+      name: 'the CLI runs /usage without a prompt',
+      hard: true,
+      ok: run.code === 0 && run.stdout.trim().length > 0,
+      why: 'Many Hats refreshes each account’s usage this way.',
+    },
+    {
+      name: 'hooks stay off for the usage refresh',
+      hard: true,
+      ok: run.code === 0 && !run.hookRan,
+      why: 'A usage refresh must never run the user’s hooks.',
+    },
+  ];
+}
+
 /** The CLI commands Many Hats runs, from their --help. */
 export function checkCli(loginHelp, logoutHelp) {
   return [
@@ -148,6 +205,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     cli = downloadCli();
     results.push(...checkCli(helpOf(cli, 'auth', 'login'), helpOf(cli, 'auth', 'logout')));
+    results.push(...checkUsage(usageRunOf(cli)));
     tested.push(`Claude Code CLI ${cli.version} (${CLI_PACKAGE}, npm)`);
   } catch (e) {
     results.push({

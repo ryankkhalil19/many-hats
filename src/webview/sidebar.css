@@ -308,6 +308,32 @@ svg {
 .limits-foot .limit-toggle:focus-visible {
   color: var(--vscode-foreground);
 }
+.limits-foot .usage-refresh {
+  margin: -3px -4px -3px 0;
+  color: var(--muted);
+}
+.limits-foot .usage-refresh:hover,
+.limits-foot .usage-refresh:focus-visible {
+  color: var(--vscode-foreground);
+}
+.usage-refresh[aria-busy='true'] {
+  cursor: default;
+}
+.usage-refresh.spinning svg {
+  animation: mh-spin 0.9s linear infinite;
+}
+@keyframes mh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.updated.stale,
+.usage-error {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow));
+}
+.usage-error {
+  font-size: 11px;
+}
 .pct {
   font-variant-numeric: tabular-nums;
   font-size: 12.5px;
@@ -764,7 +790,8 @@ body.vscode-high-contrast-light .row:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .dot.busy,
-  .menu {
+  .menu,
+  .usage-refresh.spinning svg {
     animation: none;
   }
   .bar > i,

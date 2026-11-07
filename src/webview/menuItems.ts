@@ -80,7 +80,7 @@ export function sessionMenuItems(state: SidebarState, s: SessionView, act: MenuA
   ];
 }
 
-/** An account's menu: a new session, new tabs here, sign in, usage details, and remove (not the default). */
+/** An account's menu: a new session, new tabs here, sign in, usage, and remove (not the default). */
 export function accountMenuItems(a: AccountView, act: MenuActions): MenuItem[] {
   const account = a.name;
   const items: MenuItem[] = [
@@ -100,6 +100,12 @@ export function accountMenuItems(a: AccountView, act: MenuActions): MenuItem[] {
       label: a.signedIn ? 'Sign in again…' : 'Sign in…',
       icon: I.key,
       run: () => act.post({ type: 'signIn', account }),
+    },
+    {
+      label: a.usageRefreshing ? 'Updating usage…' : 'Refresh usage',
+      icon: I.refresh,
+      disabled: !a.signedIn || Boolean(a.usageRefreshing),
+      run: () => act.post({ type: 'refreshUsage', account }),
     },
     { label: 'Usage details on claude.ai', icon: I.chart, run: () => act.post({ type: 'usageDetails' }) },
   ];

@@ -16,6 +16,9 @@ import type { Platform } from '../platform/types';
 import type { Scanner } from './scanner';
 import type { PickService } from './pick';
 
+/** How long to wait for the new tab's process once another new process (on another account) shows up. */
+const NEW_TAB_SETTLE_MS = 2000;
+
 /** Opening Claude Code tabs: Claude Code's own command. */
 export interface ClaudeTabs {
   open(sessionId?: string): Promise<void>;
@@ -111,15 +114,10 @@ export class SessionService {
     const viaLauncher = this.deps.wrapperIsOurs();
     if (viaLauncher) nextTab.arm(hostPid, expected);
     else pick.pointTemporarilyAt(target);
-    let started: number | undefined;
+    let tab: { pid: number; account: string | undefined } | undefined;
     try {
       await tabs.open();
-      const deadline = Date.now() + (this.deps.newTabTimeoutMs ?? 20000);
-      while (started === undefined && Date.now() < deadline) {
-        await this.sleep(250);
-        const now = await platform.claudeChildren(hostPid).catch(() => [] as number[]);
-        started = now.find((p) => !before.has(p));
-      }
+      tab = await this.findNewTab(before, expected);
     } finally {
       if (viaLauncher) {
         if (nextTab.disarm(hostPid)) log.warn(`no tab claimed the request to open on ${expected}`);
@@ -127,14 +125,45 @@ export class SessionService {
         pick.apply();
       }
     }
-    if (started === undefined) {
+    if (!tab) {
       log.warn(`no Claude process started within the time allowed for a new tab on ${expected}`);
       return { expected, started: false };
     }
-    const startedOn = await this.accountRunningOn(started);
-    log.info(`new tab (pid ${started}) started on ${startedOn ?? 'a folder that isn’t one of the accounts'}`);
+    log.info(
+      `new tab (pid ${tab.pid}) started on ${tab.account ?? 'a folder that isn’t one of the accounts'}`,
+    );
     void this.deps.scanner.scan();
-    return { expected, started: true, startedOn };
+    return { expected, started: true, startedOn: tab.account };
+  }
+
+  /**
+   * The new tab's process: a Claude process of this window that wasn't there before. Claude Code
+   * can start another one at the same moment, so a new process on another account is taken for
+   * the tab only once a short wait has shown none on the account asked for.
+   */
+  private async findNewTab(
+    before: ReadonlySet<number>,
+    expected: string,
+  ): Promise<{ pid: number; account: string | undefined } | undefined> {
+    const { platform, hostPid } = this.deps;
+    const deadline = Date.now() + (this.deps.newTabTimeoutMs ?? 20000);
+    const accounts = new Map<number, string | undefined>();
+    let first: { pid: number; account: string | undefined } | undefined;
+    let settleBy = Number.POSITIVE_INFINITY;
+    while (Date.now() < Math.min(deadline, settleBy)) {
+      await this.sleep(250);
+      const now = await platform.claudeChildren(hostPid).catch(() => [] as number[]);
+      for (const pid of now.filter((p) => !before.has(p))) {
+        if (!accounts.has(pid)) accounts.set(pid, await this.accountRunningOn(pid));
+        const account = accounts.get(pid);
+        if (account === expected) return { pid, account };
+        if (!first) {
+          first = { pid, account };
+          settleBy = Date.now() + NEW_TAB_SETTLE_MS;
+        }
+      }
+    }
+    return first;
   }
 
   /**

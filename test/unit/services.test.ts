@@ -10,6 +10,7 @@ import { AccountsService } from '../../src/services/accounts';
 import { NO_FOLDER_KEY, PickService, type TerminalEnv } from '../../src/services/pick';
 import { Scanner } from '../../src/services/scanner';
 import { SessionService } from '../../src/services/sessions';
+import { UsageRefresher } from '../../src/services/usageRefresh';
 import { Archive } from '../../src/state/archive';
 import { Assignments } from '../../src/state/assignments';
 import { NextTab } from '../../src/state/nextTab';
@@ -253,6 +254,39 @@ test('new session on another account: a one-shot record for exactly the next tab
   assert.equal(w.nextTab.isArmed(w.hostPid), false);
 });
 
+test('new session: another Claude process starting at the same moment isn’t taken for the tab', async () => {
+  const w = world();
+  let polls = 0;
+  w.tabs.onOpen = () => {
+    // Claude Code starts something else on the window's account first…
+    w.platform.children.push(310);
+    w.platform.env(310, {});
+    fs.rmSync(w.nextTab.file(w.hostPid), { force: true });
+  };
+  const list = w.platform.claudeChildren.bind(w.platform);
+  w.platform.claudeChildren = () => {
+    // …and the tab's own process, on the account asked for, shows up a moment later.
+    if (++polls === 3) {
+      w.platform.children.push(311);
+      w.platform.env(311, { configDir: w.store.dir('work') });
+    }
+    return list();
+  };
+  const out = await w.sessions.newSession('work');
+  assert.deepEqual(out, { expected: 'work', started: true, startedOn: 'work' });
+  assert.match(w.log.lines.join('\n'), /new tab \(pid 311\) started on work/);
+});
+
+test('new session: when only a process on another account starts, that’s what is reported', async () => {
+  const w = world();
+  w.tabs.onOpen = () => {
+    w.platform.children.push(320);
+    w.platform.env(320, {});
+  };
+  const out = await w.sessions.newSession('work');
+  assert.deepEqual(out, { expected: 'work', started: true, startedOn: 'default' });
+});
+
 test('new session: unclaimed record is withdrawn; nothing started is reported; on the pick it just opens', async () => {
   const w = world();
   const none = await w.sessions.newSession('work');
@@ -416,7 +450,24 @@ test('sidebar state: accounts with usage, sessions by account, notices', async (
   w.archive.set(C, true);
   w.platform.children = [process.pid];
   await w.scanner.scan();
+  // Usage: work's refresh failed; the default's is under way.
+  let release = (): void => undefined;
+  const usage = new UsageRefresher({
+    layout: w.store.layout,
+    store: w.store,
+    run: (_file, _args, options) =>
+      options?.env?.CLAUDE_CONFIG_DIR
+        ? Promise.reject(Object.assign(new Error('Command failed'), { code: 1 }))
+        : new Promise<string>((resolve) => (release = () => resolve(''))),
+    claudeBinary: () => '/fake/claude',
+    env: {},
+    log: w.log,
+    onChange: () => undefined,
+  });
+  await usage.refresh('work');
+  const underWay = usage.refresh('default');
   const app = {
+    usage,
     store: w.store,
     assignments: w.assignments,
     archive: w.archive,
@@ -462,4 +513,10 @@ test('sidebar state: accounts with usage, sessions by account, notices', async (
   ]);
   assert.equal(state.pick, 'default');
   assert.deepEqual(state.folders, ['app']);
+  const [mine, work] = state.accounts;
+  assert.equal(mine?.usageRefreshing, true);
+  assert.equal(work?.usageRefreshing, undefined);
+  assert.equal(work?.usageError, 'Claude Code’s CLI failed (exit code 1).');
+  release();
+  await underWay;
 });

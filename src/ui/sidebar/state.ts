@@ -56,6 +56,9 @@ export async function buildSidebarState(
     if (profile.org) view.org = profile.org;
     const usage = usageFromConfig(config, profile.accountUuid, now, compat);
     if (usage) view.usage = usage;
+    if (app.usage.isRefreshing(view.name)) view.usageRefreshing = true;
+    const failed = app.usage.lastError(view.name);
+    if (failed) view.usageError = failed;
     return view;
   });
   const running = readLiveSessions(store.defaultDir, isAlive, compat);

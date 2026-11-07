@@ -4,7 +4,7 @@ import type { App } from '../app';
 import { pickAccount } from '../pickers';
 import { tildify } from '../text';
 import { UserError } from '../../core/errors';
-import { accountNameProblem } from '../../core/ids';
+import { accountNameProblem, DEFAULT_ACCOUNT } from '../../core/ids';
 import { setWrapper, wrapperSetting } from '../host';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+$/;
@@ -129,4 +129,15 @@ export async function removeEverything(app: App): Promise<void> {
   );
   if (next === 'Uninstall')
     await vscode.commands.executeCommand('workbench.extensions.uninstallExtension', app.context.extension.id);
+}
+
+/** Asks Claude Code for every signed-in account's latest usage, one account at a time. */
+export async function refreshAllUsage(app: App): Promise<void> {
+  const failed: string[] = [];
+  for (const account of [DEFAULT_ACCOUNT, ...app.store.list()]) {
+    if ((await app.usage.refresh(account)) === 'failed')
+      failed.push(`${account}: ${app.usage.lastError(account) ?? 'it failed'}`);
+  }
+  if (failed.length)
+    void vscode.window.showWarningMessage(`Couldn’t refresh the usage of ${failed.join('; ')}`);
 }

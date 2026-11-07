@@ -5,6 +5,7 @@ import type { HealthCheck } from '../services/health';
 import type { PickService } from '../services/pick';
 import type { Scanner } from '../services/scanner';
 import type { SessionService } from '../services/sessions';
+import type { UsageRefresher } from '../services/usageRefresh';
 import type { AccountStore } from '../state/accounts';
 import type { Archive } from '../state/archive';
 import type { Assignments } from '../state/assignments';
@@ -30,6 +31,7 @@ export interface App {
   pick: PickService;
   accounts: AccountsService;
   sessions: SessionService;
+  usage: UsageRefresher;
   transcripts: TranscriptReader;
   launcherScript: string;
   claudeBinary: () => string | undefined;

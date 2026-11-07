@@ -23,11 +23,11 @@ Maybe you have a work account and a personal one, or one account per client. Cla
 
 - **A tab per account.** Start a new Claude Code tab on any account, or pick the account new tabs start on.
 - **Sessions remember their account.** A conversation reopens on the account it belongs to, whether you restore it after a reload, open it from history or open it in another window.
-- **Every account at a glance.** The sidebar shows each account's plan and usage windows (5-hour, weekly, per model), and when each one resets.
+- **Every account at a glance.** The sidebar shows each account's plan and usage windows (5-hour, weekly, per model), and when each one resets. While it's open, the figures stay current: Many Hats has Claude Code check each account every 15 minutes, and ↻ checks right away.
 - **Your sessions, grouped by account.** Search, open, rename, archive, delete, or move a session to another account.
 - **Safe by design.**
   - Many Hats never reads or stores your login tokens. Each account signs in through Claude Code's own `claude auth login`.
-  - It makes no network calls and has no telemetry.
+  - Many Hats itself makes no network calls and has no telemetry. To refresh an account's usage, it runs Claude Code's own `/usage` for that account (with your hooks off and no session saved), and Claude Code fetches the figures with that account's login.
 
 ## Requirements
 
@@ -56,23 +56,24 @@ The details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 The Command Palette, under "Many Hats":
 
-| Command                                              | What it does                                                                      |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Choose Account for New Claude Code Tabs              | Picks the account new tabs in this window start on. The status bar opens it too.  |
-| Open Claude Code Tab on Account…                     | A new tab on any account, leaving the account for new tabs as it is.              |
-| Move Claude Code Tab to Account…                     | The tab's session belongs to that account from now on.                            |
-| Add Account… / Sign In to Account… / Remove Account… | Manages your accounts.                                                            |
-| Show Claude Code Tabs by Account                     | Which open tab runs on which account.                                             |
-| Check and Repair Setup                               | Runs the self-checks and fixes what's safe to fix.                                |
-| Collect Diagnostics                                  | Copies a report for a bug report. It contains no emails, tokens or account names. |
-| Remove All Accounts and Data…                        | Signs out and removes every extra account, before you uninstall.                  |
+| Command                                              | What it does                                                                         |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Choose Account for New Claude Code Tabs              | Picks the account new tabs in this window start on. The status bar opens it too.     |
+| Open Claude Code Tab on Account…                     | A new tab on any account, leaving the account for new tabs as it is.                 |
+| Move Claude Code Tab to Account…                     | The tab's session belongs to that account from now on.                               |
+| Add Account… / Sign In to Account… / Remove Account… | Manages your accounts.                                                               |
+| Show Claude Code Tabs by Account                     | Which open tab runs on which account.                                                |
+| Refresh Sessions and Usage                           | Rescans this window's tabs and refreshes every account's usage. The sidebar's ↻ too. |
+| Check and Repair Setup                               | Runs the self-checks and fixes what's safe to fix.                                   |
+| Collect Diagnostics                                  | Copies a report for a bug report. It contains no emails, tokens or account names.    |
+| Remove All Accounts and Data…                        | Signs out and removes every extra account, before you uninstall.                     |
 
 ## Privacy and security
 
 **What Many Hats never does:**
 
 - read, copy or store a login token;
-- connect to the network, or collect telemetry.
+- connect to the network itself, or collect telemetry. Refreshing usage runs Claude Code's own `/usage`, which asks Anthropic with that account's login, as when you type `/usage`.
 
 **Where everything lives.** All of Many Hats' data is in `~/.many-hats`, readable only by you.
 
@@ -93,6 +94,12 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 - No. Each account has its own plan and limits, exactly as if you signed in to it alone.
 - Many Hats is for keeping accounts apart, such as work, clients and personal.
 - Use your accounts within [Anthropic's terms](https://www.anthropic.com/legal).
+
+**How current are the usage figures?**
+
+- Claude Code saves an account's usage only when something asks for it, so on its own the figures can be hours old.
+- While the sidebar is open, Many Hats has Claude Code check each account every 15 minutes, so the figures are at most about 15 minutes old. ↻ on an account checks right away.
+- Figures more than an hour old are shown in yellow, and a failed check says "Couldn't refresh", with the reason on hover.
 
 **Which account does a session belong to?**
 

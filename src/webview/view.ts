@@ -86,12 +86,8 @@ export function card(
   }
   const limits = rows.length
     ? rows.join('')
-    : '<div class="note">No usage yet. It appears after this account’s next Claude Code session.</div>';
-  const updated = a.usage?.fetchedAtMs ? `Updated ${agoLong(a.usage.fetchedAtMs, now)}` : '';
-  const foot =
-    updated || shows.length
-      ? `<div class="limits-foot">${updated ? `<span class="updated" title="When Claude Code last fetched this account’s usage">${esc(updated)}</span>` : ''}${shows.join('')}</div>`
-      : '';
+    : `<div class="note">${a.usageRefreshing ? 'Getting this account’s usage…' : 'No usage figures yet.'}</div>`;
+  const foot = usageFoot(a, now, shows);
   const n = esc(a.name);
   const body = a.signedIn
     ? `<div class="limits">${limits}${foot}</div>`
@@ -114,6 +110,32 @@ export function card(
       ${a.usage?.credits ? `<div class="sub">Usage credits: ${esc(a.usage.credits.used)} used</div>` : ''}
       <div class="card-foot">${actions}</div>
     </div>`;
+}
+
+/** Figures this old are past what Claude Code itself still trusts, so they're marked. */
+export const STALE_USAGE_MS = 60 * 60_000;
+
+/**
+ * The line under an account's limits: when its figures are from (or that they're updating, or
+ * that a refresh failed), the ▾ of each hidden limit, and a button to refresh the figures now.
+ */
+function usageFoot(a: AccountView, now: number, shows: readonly string[]): string {
+  const fetched = a.usage?.fetchedAtMs;
+  const busy = Boolean(a.usageRefreshing);
+  const stale = fetched !== undefined && now - fetched > STALE_USAGE_MS;
+  const when = busy
+    ? '<span class="updated" role="status">Updating…</span>'
+    : fetched
+      ? `<span class="updated${stale ? ' stale' : ''}" title="When Claude Code last fetched this account’s usage">Updated ${esc(agoLong(fetched, now))}</span>`
+      : '';
+  const failed =
+    a.usageError && !busy
+      ? `<span class="usage-error" title="${esc(a.usageError)}">${fetched ? 'Couldn’t refresh' : 'Couldn’t get usage'}</span>`
+      : '';
+  const n = esc(a.name);
+  const button = `<button class="icon-btn usage-refresh${busy ? ' spinning' : ''}" data-act="refreshUsage" data-account="${n}" data-key="refresh:${n}"
+      title="${busy ? 'Updating usage…' : 'Refresh usage now'}" aria-label="Refresh usage for ${esc(labelOf(a))}"${busy ? ' aria-disabled="true" aria-busy="true"' : ''}>${I.refresh}</button>`;
+  return `<div class="limits-foot">${when}${failed}${shows.join('')}${button}</div>`;
 }
 
 /**

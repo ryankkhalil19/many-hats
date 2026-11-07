@@ -289,6 +289,30 @@ test(
   },
 );
 
+test('the refresh button asks for fresh usage and shows it updating', { skip }, async () => {
+  const foot = '.card[data-account="work"] .limits-foot';
+  assert.match(await page.eval(`document.querySelector(${json(foot)}).textContent`), /Updated 6m ago/);
+  await forget();
+  await page.click(`${foot} [data-act="refreshUsage"]`);
+  assert.deepEqual(await posted(), [{ type: 'refreshUsage', account: 'work' }]);
+  await page.until(`document.querySelector(${json(foot)}).textContent.includes('Updating…')`);
+  const button = `${foot} [data-act="refreshUsage"]`;
+  assert.equal(await page.eval(`document.querySelector(${json(button)}).getAttribute('aria-busy')`), 'true');
+  assert.equal(
+    await page.eval(`document.activeElement === document.querySelector(${json(button)})`),
+    true,
+    'focus stays on the button while it works',
+  );
+  await page.click(button);
+  assert.deepEqual(
+    await posted(),
+    [{ type: 'refreshUsage', account: 'work' }],
+    'a second click while busy does nothing',
+  );
+  await page.until(`document.querySelector(${json(foot)}).textContent.includes('Updated just now')`);
+  assert.equal(await page.eval(`document.querySelector(${json(button)}).getAttribute('aria-busy')`), null);
+});
+
 test('the account menu offers Remove only for extra accounts', { skip }, async () => {
   await page.click('.card[data-account="default"] [data-act="accountMenu"]');
   await page.until(`document.querySelector('.menu')`);
@@ -300,6 +324,7 @@ test('the account menu offers Remove only for extra accounts', { skip }, async (
     'New session',
     'Use for new tabs',
     'Sign in again…',
+    'Refresh usage',
     'Usage details on claude.ai',
     'Remove account…',
   ]);

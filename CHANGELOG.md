@@ -12,7 +12,7 @@ First public pre-release.
 
 - **Accounts:** run each Claude Code tab on its own Claude account, side by side in one window, with shared conversations, settings, `CLAUDE.md`, skills, plugins and memory.
 - **Sidebar:**
-  - every account with its plan and usage windows (5-hour, weekly, per model) and when each resets;
+  - every account with its plan and usage windows (5-hour, weekly, per model) and when each resets, kept current: while the sidebar shows, Claude Code's own `/usage` refreshes each account every 15 minutes (hooks off, nothing saved), and ↻ refreshes now;
   - this folder's sessions grouped by account, with search, filters, open, rename, archive, delete, Open on account and Move to account;
   - a per-model limit can be hidden on one account.
 - **Sessions remember their account.** A resumed session starts on its account, from any window, tab restore or history entry.
@@ -23,7 +23,7 @@ First public pre-release.
 - **Collect Diagnostics:** a redacted report for bug reports.
 - **A clean uninstall:** the uninstall hook removes the process-wrapper setting from that editor (every profile, comments kept). "Remove All Accounts and Data…" removes the rest.
 - **Security:**
-  - Many Hats never reads a login token, and it makes no network calls and collects no telemetry;
+  - Many Hats never reads a login token, and it makes no network calls itself and collects no telemetry;
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 

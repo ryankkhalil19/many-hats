@@ -37,6 +37,10 @@ export interface AccountView {
   signedIn: boolean;
   isPick: boolean;
   usage?: Usage;
+  /** Claude Code's /usage is running for it, to refresh its figures. */
+  usageRefreshing?: boolean;
+  /** Why the last refresh of its figures failed, in a few words. */
+  usageError?: string;
   openHere: number;
 }
 
@@ -84,6 +88,7 @@ export type ToHost =
   | { type: 'signIn'; account: string }
   | { type: 'addAccount' }
   | { type: 'removeAccount'; account: string }
+  | { type: 'refreshUsage'; account: string }
   | { type: 'usageDetails' }
   | { type: 'copyId'; id: string }
   | { type: 'notice'; command: string };
@@ -117,6 +122,7 @@ export function parseToHost(m: unknown): ToHost | undefined {
     case 'pick':
     case 'signIn':
     case 'removeAccount':
+    case 'refreshUsage':
       return account ? { type: o.type, account } : undefined;
     case 'move':
       return id && account ? { type: 'move', id, account } : undefined;

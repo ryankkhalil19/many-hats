@@ -43,6 +43,7 @@ uninstall/        the uninstall hook (plain Node)
 | `bin/launcher`                    | The process wrapper.                                                                                                                         | `installLauncher`                   |
 | `logs/launcher.log`               | One line per Claude start: session, account, why. Rotated at 256 KiB.                                                                        | the launcher                        |
 | `backups/`                        | File versions a sync set aside.                                                                                                              | `ConfigSync`                        |
+| `locks/usage-<name>`              | A window refreshing an account's usage, so no two windows do it at once.                                                                     | `UsageRefresher`                    |
 | `VERSION`                         | The data layout's version. A newer one is never touched.                                                                                     | `ensureLayout`                      |
 
 ### Invariants
@@ -79,6 +80,8 @@ Every failure path falls through to step 4: an unreadable record, a missing fold
 | `<config>/sessions/<pid>.json` with `sessionId`           | Which session a process is                  | `Compat('liveSessions')`                |
 | `.claude.json` `oauthAccount.emailAddress`                | Who an account is                           | `Compat('identity')`                    |
 | `.claude.json` `cachedUsageUtilization`                   | Usage windows                               | `Compat('usage')`                       |
+| `claude -p /usage` runs without a prompt and saves usage  | Refreshing an account's usage               | nightly canary                          |
+| `--settings '{"disableAllHooks":true}'` turns hooks off   | A refresh never runs the user's hooks       | nightly canary                          |
 | Transcript lines `{"type": …}`                            | Session titles                              | `Compat('transcripts')`                 |
 | Tabs carry `MANY_HATS_LAUNCHER=1` once the wrapper is set | The wrapper is still honoured               | `Compat('processWrapper')`              |
 | One Keychain entry per config folder                      | Separate logins                             | design; unchanged since Claude Code 1.x |
@@ -102,6 +105,22 @@ Each reader reports how many records it understood (`ok`) and how many it found 
 
 - **Matching:** it pairs each process with its live-session record and adopts first-seen sessions.
 - **When it scans:** it rescans when Claude Code's session records change (`fs.watch`), and on a timer: 2 s while the sidebar is visible, 6 s otherwise.
+
+## Usage
+
+Claude Code saves an account's usage (`cachedUsageUtilization` in its `.claude.json`) only when something asks for it: its own usage view, or a check near a limit. Ordinary use doesn't, so figures can be hours old. Claude Code itself stops trusting them after an hour.
+
+`services/usageRefresh.ts` asks the way a person would, by running Claude Code's own `/usage` for the account. It runs `claude -p /usage` with that account's `CLAUDE_CONFIG_DIR`:
+
+- **No inherited login:** any login variable inherited from elsewhere is removed.
+- **Nothing extra:** no session is saved (`--no-session-persistence`), the user's hooks stay off (`disableAllHooks`), and there's no self-update and no telemetry.
+- **One working folder:** it always runs from `~/.many-hats`.
+
+Claude Code fetches the figures with that account's own login and saves them, and the sidebar reads them as before. Many Hats itself never touches a login or the network.
+
+- **When:** every 5 s while the sidebar shows, `tick()` refreshes the first signed-in account whose figures are over 15 minutes old, one at a time. The ↻ on a card and **Refresh Sessions and Usage** refresh right away.
+- **Across windows:** a lock file per account (`locks/usage-<name>`, created only if absent) means one window refreshes it and every window reads the result. A lock older than 3 minutes was left by a window that went away.
+- **Failures:** the card says "Couldn't refresh", with the reason on hover, and automatic refreshes of that account wait 15 minutes. The log has the details.
 
 ## The sidebar
 

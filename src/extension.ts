@@ -29,6 +29,7 @@ import { housekeeping } from './services/maintenance';
 import { PickService } from './services/pick';
 import { Scanner } from './services/scanner';
 import { SessionService } from './services/sessions';
+import { UsageRefresher } from './services/usageRefresh';
 import { AccountStore } from './state/accounts';
 import { Archive } from './state/archive';
 import { Assignments } from './state/assignments';
@@ -156,6 +157,15 @@ function start(context: vscode.ExtensionContext, log: Logger, started: number): 
     });
 
   const views: { sidebar?: SidebarProvider; statusBar?: { render(): void } } = {};
+  const usage = new UsageRefresher({
+    layout,
+    store,
+    run,
+    claudeBinary,
+    env: process.env,
+    log,
+    onChange: () => views.sidebar?.schedule(),
+  });
   const version = (context.extension.packageJSON as { version?: unknown }).version;
   const app: App = {
     context,
@@ -172,6 +182,7 @@ function start(context: vscode.ExtensionContext, log: Logger, started: number): 
     pick,
     accounts,
     sessions,
+    usage,
     transcripts,
     launcherScript,
     claudeBinary,

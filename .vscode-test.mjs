@@ -11,6 +11,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// Earlier runs: a Claude process that outlives its test editor can write a few files back after
+// the cleanup below, so sandboxes over an hour old are swept when the next run starts.
+for (const name of fs.readdirSync(os.tmpdir())) {
+  if (!name.startsWith('many-hats-it-')) continue;
+  const dir = path.join(os.tmpdir(), name);
+  try {
+    if (Date.now() - fs.statSync(dir).mtimeMs > 3600e3) fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // gone already
+  }
+}
+
 const sandboxes = [];
 // Removed after a passing run; kept after a failing one, with the editor's profile and logs.
 process.on('exit', (code) => {

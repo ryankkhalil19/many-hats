@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { check, checkCli } from '../../scripts/canary.mjs';
+import { check, checkCli, checkUsage, USAGE_ARGS } from '../../scripts/canary.mjs';
+import { USAGE_ARGS as EXTENSION_USAGE_ARGS } from '../../src/services/usageRefresh.ts';
 
 const fixture = (name) =>
   fs.readFileSync(path.join(import.meta.dirname, '../fixtures/claude-code-2.1', name), 'utf8');
@@ -54,5 +55,24 @@ test('canary: the CLI checks pass on 2.1’s help and catch a missing command or
   assert.ok(
     checkCli('', '').every((r) => r.hard),
     'sign-in and sign-out break without them',
+  );
+});
+
+test('canary: the usage refresh runs without a prompt and with hooks off, as the extension runs it', () => {
+  assert.deepEqual(
+    USAGE_ARGS,
+    [...EXTENSION_USAGE_ARGS],
+    'the canary checks the command line the extension uses',
+  );
+  const ok = { code: 0, stdout: 'Total cost: $0.0000\n', hookRan: false };
+  assert.deepEqual(failing(checkUsage(ok)), []);
+  assert.deepEqual(failing(checkUsage({ ...ok, hookRan: true })), ['hooks stay off for the usage refresh']);
+  assert.deepEqual(failing(checkUsage({ code: 1, stdout: 'error: unknown option', hookRan: false })), [
+    'the CLI runs /usage without a prompt',
+    'hooks stay off for the usage refresh',
+  ]);
+  assert.ok(
+    checkUsage({ code: null, stdout: '', hookRan: false }).every((r) => r.hard && !r.ok),
+    'a timeout fails both',
   );
 });

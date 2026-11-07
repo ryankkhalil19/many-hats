@@ -326,6 +326,18 @@
             if (m.type === 'archive' && s) s.archived = m.archived;
             if (m.type === 'delete' && s && !s.running) state.sessions.splice(state.sessions.indexOf(s), 1);
             if (m.type === 'move' && s) s.movingTo = m.account === s.account ? null : m.account;
+            if (m.type === 'refreshUsage') {
+              // Like the real extension: the card shows it updating, then the fresh figures.
+              const a = state.accounts.find((x) => x.name === m.account);
+              if (a && a.signedIn && !a.usageRefreshing) {
+                a.usageRefreshing = true;
+                setTimeout(() => {
+                  a.usageRefreshing = false;
+                  if (a.usage) a.usage.fetchedAtMs = Date.now();
+                  send();
+                }, 400);
+              }
+            }
             if (m.type === 'pick') {
               for (const a of state.accounts) a.isPick = a.name === m.account;
               state.pick = m.account;

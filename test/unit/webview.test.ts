@@ -154,7 +154,42 @@ test('view: account cards — signed in, signed out, usage, hidden per-model lim
   assert.match(out, /Not signed in: sign in as n@x\.example/);
   assert.match(out, /data-act="signIn"/);
   assert.match(card(ui(), account({ isPick: true, usage: { limits: [] } }), NOW), /New tabs start here/);
-  assert.match(card(ui(), account({}), NOW), /No usage yet/);
+  assert.match(card(ui(), account({}), NOW), /No usage figures yet/);
+});
+
+test('view: the usage line — when the figures are from, updating, stale, failed, and the refresh button', () => {
+  const fresh = card(ui(), account({ usage: { fetchedAtMs: NOW - 5 * 60_000, limits: [] } }), NOW);
+  assert.match(fresh, /<span class="updated" title="[^"]+">Updated 5m ago<\/span>/);
+  assert.match(fresh, /data-act="refreshUsage" data-account="default"/);
+  assert.doesNotMatch(fresh, /aria-busy/);
+  const stale = card(ui(), account({ usage: { fetchedAtMs: NOW - 2 * 3600e3, limits: [] } }), NOW);
+  assert.match(stale, /class="updated stale"/, 'older than Claude Code itself trusts');
+  const busy = card(
+    ui(),
+    account({ usageRefreshing: true, usage: { fetchedAtMs: NOW - 2 * 3600e3, limits: [] } }),
+    NOW,
+  );
+  assert.match(busy, /Updating…/);
+  assert.match(busy, /usage-refresh spinning/);
+  assert.match(busy, /aria-disabled="true" aria-busy="true"/, 'busy, but still focusable');
+  assert.doesNotMatch(busy, /Updated /);
+  const failed = card(
+    ui(),
+    account({ usageError: 'Claude Code took too long.', usage: { fetchedAtMs: NOW - 3600e3, limits: [] } }),
+    NOW,
+  );
+  assert.match(
+    failed,
+    /<span class="usage-error" title="Claude Code took too long\.">Couldn’t refresh<\/span>/,
+  );
+  const never = card(ui(), account({ usageError: 'Claude Code’s CLI wasn’t found.' }), NOW);
+  assert.match(never, /Couldn’t get usage/);
+  assert.match(card(ui(), account({ usageRefreshing: true }), NOW), /Getting this account’s usage…/);
+  assert.doesNotMatch(
+    card(ui(), account({ signedIn: false }), NOW),
+    /refreshUsage/,
+    'nothing to refresh while signed out',
+  );
 });
 
 test('view: sessions grouped by account, filtered and searched, with status and moves', () => {
@@ -326,13 +361,18 @@ test('menus: an account — the default can’t be removed; signed out, it can o
     'New session',
     'New tabs start on this account [off]',
     'Sign in again…',
+    'Refresh usage',
     'Usage details on claude.ai',
   ]);
+  assert.ok(
+    describe(accountMenuItems(account({ usageRefreshing: true }), act)).includes('Updating usage… [off]'),
+  );
   const out = accountMenuItems(account({ name: 'client', signedIn: false }), act);
   assert.deepEqual(describe(out), [
     'New session [off]',
     'Use for new tabs',
     'Sign in…',
+    'Refresh usage [off]',
     'Usage details on claude.ai',
     '---',
     'Remove account…',
@@ -340,12 +380,14 @@ test('menus: an account — the default can’t be removed; signed out, it can o
   for (const label of ['Use for new tabs', 'Sign in…', 'Usage details on claude.ai', 'Remove account…'])
     run(out, label);
   run(accountMenuItems(account({ name: 'work' }), act), 'New session');
+  run(accountMenuItems(account({ name: 'work' }), act), 'Refresh usage');
   assert.deepEqual(calls, [
     { type: 'pick', account: 'client' },
     { type: 'signIn', account: 'client' },
     { type: 'usageDetails' },
     { type: 'removeAccount', account: 'client' },
     { type: 'new', account: 'work' },
+    { type: 'refreshUsage', account: 'work' },
   ]);
 });
 
