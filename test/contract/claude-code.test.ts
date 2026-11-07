@@ -14,6 +14,7 @@ import { clamp, money, profileFromConfig, usageFromConfig } from '../../src/clau
 import {
   TranscriptReader,
   allSessionIds,
+  hasTranscript,
   renameSession,
   sessionPaths,
   titleOf,
@@ -73,6 +74,7 @@ for (const version of versions) {
       sessionId: A,
       status: 'busy',
       name: 'Fix the login bug',
+      cwd: '/Users/me/app',
     });
   });
 
@@ -352,4 +354,17 @@ test('sessionPaths finds everything that belongs to one session', () => {
   fs.writeFileSync(path.join(claude, 'todos', `${B}-agent-1.json`), '[]');
   assert.deepEqual(sessionPaths(claude, dir, A).sort(), made.sort());
   assert.deepEqual(sessionPaths(claude, dir, '../../etc'), []);
+});
+
+test('a session counts as saved once its transcript exists, wherever its project folder is', () => {
+  const claude = tempDir();
+  const id = 'abcdef01-0000-4000-8000-0000000000aa';
+  assert.equal(hasTranscript(claude, id, '/Users/me/app'), false, 'no projects folder at all');
+  fs.mkdirSync(projectDir(claude, '/Users/me/app'), { recursive: true });
+  assert.equal(hasTranscript(claude, id, '/Users/me/app'), false, 'opened, never used');
+  fs.writeFileSync(path.join(projectDir(claude, '/Users/me/app'), `${id}.jsonl`), '{}\n');
+  assert.equal(hasTranscript(claude, id, '/Users/me/app'), true);
+  assert.equal(hasTranscript(claude, id.toUpperCase(), '/Users/me/app'), true);
+  assert.equal(hasTranscript(claude, id, '/Users/me/elsewhere'), true, 'found in another project folder');
+  assert.equal(hasTranscript(claude, id), true, 'found without a folder');
 });

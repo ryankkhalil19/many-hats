@@ -10,6 +10,7 @@ import type { AccountStore } from '../state/accounts';
 import type { Assignments } from '../state/assignments';
 import type { Picks } from '../state/picks';
 import { cliEnv, cliEnvArgs } from '../claude/cli';
+import { allSessionIds } from '../claude/transcripts';
 import { isAccountLocal } from '../claude/configFiles';
 import { UserError, errorText } from '../core/errors';
 import { DEFAULT_ACCOUNT, extraOrUndefined } from '../core/ids';
@@ -104,19 +105,33 @@ export class AccountsService {
    * Remove an extra account: sign it out, move its folder to the Trash (only its own files: the
    * links to ~/.claude are removed first), and forget it everywhere.
    */
-  async remove(name: string): Promise<{ unassigned: number; windowsReset: number }> {
+  /**
+   * What removing an account undoes: the saved conversations that belong to it (a record for a
+   * tab that was never used doesn't count), and the windows whose new tabs start on it.
+   */
+  removalImpact(name: string): { conversations: number; windows: number } {
+    const { store, assignments, picks } = this.deps;
+    const saved = allSessionIds(store.defaultDir); // undefined: unreadable, so count every record
+    let conversations = 0;
+    for (const [id, a] of assignments.list())
+      if (a.account === name && (!saved || saved.has(id))) conversations++;
+    return { conversations, windows: picks.list().filter((p) => p.account === name).length };
+  }
+
+  async remove(name: string): Promise<{ conversations: number; windowsReset: number }> {
     const { store, sync, trash, picks, assignments, log } = this.deps;
     if (!store.exists(name)) throw new UserError(`There is no account "${name}".`);
+    const { conversations } = this.removalImpact(name);
     this.unwatch(name);
     await this.signOut(name);
     sync.unlinkShared(name);
     await trash.trash(store.dir(name));
     const windowsReset = picks.forgetAccount(name);
-    const unassigned = assignments.removeAccount(name);
+    assignments.removeAccount(name);
     log.info(
-      `removed account ${name}; ${unassigned} session(s) lost their account, ${windowsReset} window(s) went back to default`,
+      `removed account ${name}; ${conversations} conversation(s) no longer belong to it, ${windowsReset} window(s) went back to default`,
     );
-    return { unassigned, windowsReset };
+    return { conversations, windowsReset };
   }
 
   /** Link every account folder to ~/.claude now, and whenever something changes in one. */

@@ -49,7 +49,7 @@ uninstall/        the uninstall hook (plain Node)
 ### Invariants
 
 1. **One record per key, replaced atomically.** Every write goes temp file → `fsync` → `rename`. Readers see the old or the new record, never half of one. Several windows and every Claude start read these at once, and there's nothing to lock.
-2. **A session's account is sticky.** It's set the first time the session is seen running on one of the accounts, and afterwards only Move or "Open on account" change it. Seeing it run elsewhere never flips it.
+2. **A session's account is sticky.** It's set the first time the session is seen running on one of the accounts once it has been saved (Claude Code saves a session with its first message, so a tab that's never used is never recorded). Afterwards only Move or "Open on account" change it. Seeing it run elsewhere never flips it.
 3. **Nothing reads a token.** Logins stay in each config folder's Keychain entry, owned by Claude Code. Sign-in and sign-out run `claude auth login`/`logout`.
 4. **Untrusted input is checked at the edge.** Session ids must be UUIDs and account names match `^[a-z0-9][a-z0-9_-]{0,31}$` before they're used in a path. This applies to:
    - webview messages (`shared/protocol.ts`);

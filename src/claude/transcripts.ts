@@ -16,6 +16,7 @@ import type { Compat } from './compat';
 import { UserError } from '../core/errors';
 import { isSessionId } from '../core/ids';
 import { lstatOrUndefined, readDirOrEmpty } from '../infra/fsx';
+import { projectDir } from './paths';
 
 export interface TranscriptFacts {
   customTitle?: string;
@@ -195,6 +196,18 @@ export function titleOf(f: TranscriptFacts): string {
  * Every session that has a transcript, in any project: for forgetting records of sessions that
  * are gone. undefined: the projects folder couldn't be read, so nothing should be forgotten.
  */
+/**
+ * Whether a session has been saved. Claude Code writes a session's transcript with its first
+ * message, so a tab that was opened and never used has none, and nothing to reopen.
+ * @param cwd the folder it runs in, where its transcript normally is (else every project is looked at)
+ */
+export function hasTranscript(claudeDir: string, sessionId: string, cwd?: string): boolean {
+  const file = `${sessionId.toLowerCase()}.jsonl`;
+  if (cwd && fs.existsSync(path.join(projectDir(claudeDir, cwd), file))) return true;
+  const projects = path.join(claudeDir, 'projects');
+  return readDirOrEmpty(projects).some((d) => fs.existsSync(path.join(projects, d, file)));
+}
+
 export function allSessionIds(claudeDir: string): Set<string> | undefined {
   const projects = path.join(claudeDir, 'projects');
   let dirs: string[];

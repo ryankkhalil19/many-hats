@@ -72,6 +72,8 @@ export async function removeAccount(app: App, given?: string): Promise<void> {
   const chosen = given ?? (await pickAccount(app, 'Remove an account', false));
   if (!chosen || !app.store.exists(chosen)) return;
   const busy = await app.accounts.usersOf(chosen);
+  const { conversations, windows } = app.accounts.removalImpact(chosen);
+  const many = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
   const go = await vscode.window.showWarningMessage(
     `Remove the "${chosen}" account?`,
     {
@@ -79,9 +81,16 @@ export async function removeAccount(app: App, given?: string): Promise<void> {
       detail: [
         `This signs it out on this Mac and moves ${tildify(app.store.dir(chosen))} to the Trash.`,
         'Conversations, settings and CLAUDE.md live in ~/.claude and stay.',
+        conversations
+          ? `${many(conversations, 'conversation')} belong to it. They’ll stop reopening on it and start on the window’s account for new tabs.`
+          : '',
+        windows
+          ? `New tabs in ${many(windows, 'window')} start on it. They’ll start on the default account instead.`
+          : '',
         busy
           ? `${busy} Claude process(es) run on it right now, in this or another window. Close those tabs first or they stop working.`
           : '',
+        'If it’s signed out or its usage looks old, Sign In Again or Refresh Usage fixes that and keeps all of this.',
       ]
         .filter(Boolean)
         .join(' '),

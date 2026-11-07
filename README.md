@@ -103,7 +103,7 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 **Which account does a session belong to?**
 
-- The account it was first seen running on, until you move it.
+- The account it was first seen running on, from its first message, until you move it. A tab you open and never use has nothing to reopen, so Many Hats doesn't record it.
 - Sessions Many Hats hasn't seen running yet are listed under **Unassigned**. Opening one starts it on the account for new tabs.
 
 **Why only macOS?**

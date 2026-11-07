@@ -15,6 +15,7 @@ import type { AccountStore } from '../state/accounts';
 import type { Compat } from '../claude/compat';
 import { readLiveSession } from '../claude/liveSessions';
 import { liveSessionsDir } from '../claude/paths';
+import { hasTranscript } from '../claude/transcripts';
 import { errorText } from '../core/errors';
 import type { Logger } from '../infra/log';
 import type { Platform, ProcessEnv } from '../platform/types';
@@ -156,9 +157,20 @@ export class Scanner {
           if (env.viaLauncher) viaLauncher++;
           else bypassed++;
         }
-        if (account && tab.sessionId && store.usable(account) && !compat.isDegraded('liveSessions')) {
+        // A session gets its account once it has been saved, with its first message. A tab opened
+        // and never used has nothing to reopen, so it isn't recorded (or counted anywhere).
+        const id = tab.sessionId;
+        if (
+          account &&
+          id &&
+          store.usable(account) &&
+          !compat.isDegraded('liveSessions') &&
+          !assignments.get(id) &&
+          (hasTranscript(store.defaultDir, id, live?.cwd) ||
+            (env.configDir !== undefined && hasTranscript(env.configDir, id, live?.cwd)))
+        ) {
           try {
-            if (assignments.adopt(tab.sessionId, account)) {
+            if (assignments.adopt(id, account)) {
               log.info(
                 `session ${tab.sessionId} ("${tab.title ?? 'untitled'}") belongs to ${account}: first seen running there`,
               );

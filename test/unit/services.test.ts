@@ -104,7 +104,16 @@ function world(options: { wrapperIsOurs?: boolean } = {}) {
     platform.env(pid, { configDir });
     fs.writeFileSync(
       path.join(h.claude, 'sessions', `${pid}.json`),
-      JSON.stringify({ pid, sessionId, status }),
+      JSON.stringify({ pid, sessionId, status, cwd: '/code/app' }),
+    );
+  };
+  /** A session's first message: Claude Code saves its transcript then. */
+  const talk = (sessionId: string, cwd = '/code/app') => {
+    const dir = projectDir(h.claude, cwd);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, `${sessionId}.jsonl`),
+      `${JSON.stringify({ type: 'user', sessionId })}\n`,
     );
   };
   return {
@@ -126,6 +135,7 @@ function world(options: { wrapperIsOurs?: boolean } = {}) {
     accounts,
     runs,
     live,
+    talk,
     hostPid,
   };
 }
@@ -189,6 +199,11 @@ test('scanner: tabs mapped to accounts; a session is adopted where it is first s
   let changes = 0;
   w.scanner.onDidChange(() => changes++);
   await w.scanner.scan();
+  assert.equal(w.assignments.get(A), undefined, 'a tab that was never used has nothing to reopen');
+  assert.equal(w.assignments.get(B), undefined);
+  w.talk(A);
+  w.talk(B, '/somewhere/else'); // found even outside the folder its tab reports
+  await w.scanner.scan();
   assert.deepEqual(
     w.scanner.running().map((r) => [r.pid, r.account, r.sessionId]),
     [
@@ -198,6 +213,7 @@ test('scanner: tabs mapped to accounts; a session is adopted where it is first s
   );
   assert.equal(w.assignments.accountOf(A), 'work');
   assert.equal(w.assignments.accountOf(B), 'default');
+  assert.match(w.log.lines.join('\n'), /belongs to work: first seen running there/);
   assert.equal(changes, 1);
   assert.ok(w.scanner.isHere(101));
   // Seen running elsewhere later: the record stays.
@@ -388,11 +404,20 @@ test('accounts: create links and remembers the email; sign-in runs claude auth l
 test('accounts: remove signs out, trashes only its own files, and forgets it everywhere', async () => {
   const w = world();
   w.assignments.set(A, 'work', 'moved');
+  w.talk(A);
+  w.assignments.set(B, 'work', 'observed'); // a tab that was never used: not a conversation
   w.picks.set('/code/other', 'work');
   w.accounts.startWatching();
+  assert.deepEqual(w.accounts.removalImpact('work'), { conversations: 1, windows: 1 });
+  assert.deepEqual(w.accounts.removalImpact('default'), { conversations: 0, windows: 0 });
   const dir = w.store.dir('work');
   const out = await w.accounts.remove('work');
-  assert.deepEqual(out, { unassigned: 1, windowsReset: 1 });
+  assert.deepEqual(out, { conversations: 1, windowsReset: 1 });
+  assert.equal(w.assignments.get(B), undefined, 'every record of it goes');
+  assert.match(
+    w.log.lines.join('\n'),
+    /removed account work; 1 conversation\(s\) no longer belong to it, 1 window\(s\)/,
+  );
   assert.equal(w.store.exists('work'), false);
   assert.deepEqual(w.trash.trashed, [dir]);
   const trashed = fs.readdirSync(path.join(w.home, '.Trash', '0-work'));

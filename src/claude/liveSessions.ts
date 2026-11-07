@@ -15,6 +15,8 @@ export interface LiveSession {
   status: 'busy' | 'idle';
   /** The name Claude Code shows for it, if any. */
   name?: string;
+  /** The folder it runs in, where its transcript is saved. */
+  cwd?: string;
 }
 
 export function isAlive(pid: number): boolean {
@@ -35,6 +37,7 @@ export function parseLiveSession(pid: number, raw: unknown): LiveSession | undef
     status: raw.status === 'busy' ? 'busy' : 'idle',
   };
   if (typeof raw.name === 'string' && raw.name) s.name = raw.name;
+  if (typeof raw.cwd === 'string' && path.isAbsolute(raw.cwd)) s.cwd = raw.cwd;
   return s;
 }
 
