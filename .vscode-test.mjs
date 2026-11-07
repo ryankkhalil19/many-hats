@@ -17,6 +17,10 @@ function sandbox() {
     home: path.join(base, 'home'),
     workspace: path.join(base, 'workspace'),
     claude: path.join(base, 'claude-default'),
+    // A fresh editor profile for every run. The shared default (.vscode-test/user-data) keeps an
+    // earlier run's settings, such as Claude Code's process wrapper pointing at that run's
+    // launcher, which Many Hats rightly leaves alone as another program's.
+    userData: path.join(base, 'user-data'),
   };
   for (const d of Object.values(dirs)) fs.mkdirSync(d, { recursive: true });
   return dirs;
@@ -39,12 +43,17 @@ export default defineConfig([
   {
     label: 'integration',
     ...common(alone, '1.96.0'),
-    launchArgs: ['--disable-extension', 'anthropic.claude-code', '--disable-workspace-trust'],
+    launchArgs: [
+      `--user-data-dir=${alone.userData}`,
+      '--disable-extension',
+      'anthropic.claude-code',
+      '--disable-workspace-trust',
+    ],
   },
   {
     label: 'e2e',
     ...common(withClaude, 'stable'),
     installExtensions: ['anthropic.claude-code'],
-    launchArgs: ['--disable-workspace-trust'],
+    launchArgs: [`--user-data-dir=${withClaude.userData}`, '--disable-workspace-trust'],
   },
 ]);
