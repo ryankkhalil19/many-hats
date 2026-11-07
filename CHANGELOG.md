@@ -4,7 +4,7 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-11-06
+## [0.9.0] - 2026-11-07
 
 First public pre-release.
 
