@@ -71,6 +71,7 @@ Keep each PR to one change, with a description of what it fixes and how you test
 
 - `npm run brand` rebuilds the icons and images from `brand/shapes.mjs` (needs `rsvg-convert`).
 - `npm run screenshots` retakes the README screenshots from `tools/preview` (needs Google Chrome).
+- `npm run demo` records the README's animated demo from `tools/preview` (needs Google Chrome and `ffmpeg`).
 
 See [brand/README.md](brand/README.md).
 

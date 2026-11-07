@@ -12,7 +12,12 @@ Maybe you have a work account and a personal one, or one account per client. Cla
 - each tab uses its own account's login, plan and usage limits;
 - your conversations, settings, `CLAUDE.md`, skills, plugins and memory are shared by all of them.
 
-<img src="docs/images/sidebar-dark.png" alt="The Many Hats sidebar: three accounts with their usage limits, and this folder's sessions grouped by account" width="320">
+<table>
+  <tr>
+    <td valign="top"><img src="docs/images/demo.gif" alt="The Many Hats sidebar in a dark theme: a new session starts on the work account, a session moves to work from its menu, and work becomes the account for new tabs" width="300"></td>
+    <td valign="top"><img src="docs/images/sidebar-light.png" alt="The Many Hats sidebar in a light theme: three accounts with their usage limits, and this folder's sessions grouped by account" width="300"></td>
+  </tr>
+</table>
 
 ## What it does
 

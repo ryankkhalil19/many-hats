@@ -192,6 +192,7 @@
     "package": "node scripts/package.mjs",
     "brand": "node scripts/brand.mjs",
     "screenshots": "node scripts/screenshots.mjs",
+    "demo": "node scripts/build.mjs && node scripts/demo.mjs",
     "canary": "node scripts/canary.mjs",
     "vscode:prepublish": "node scripts/build.mjs --production",
     "vscode:uninstall": "node ./dist/uninstall.js",
