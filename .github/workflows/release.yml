@@ -34,6 +34,7 @@ jobs:
       - name: The tag matches package.json
         run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
       - run: npm run check
+      - run: npm run test:webview
       - run: npm run test:integration
       - run: npm run package
       - name: Checksums

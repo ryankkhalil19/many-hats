@@ -13,8 +13,44 @@ export const C = '33333333-3333-4333-8333-333333333333';
 export const D = '44444444-4444-4444-8444-444444444444';
 export const DAY = 24 * 3600e3;
 
+/** The folders tempDir made in this test process: removed when it exits (MANY_HATS_KEEP_TMP=1 keeps them). */
+const made: string[] = [];
+
 export function tempDir(prefix = 'many-hats-test-'): string {
-  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+  if (!made.length) process.on('exit', removeTempDirs);
+  made.push(dir);
+  return dir;
+}
+
+function removeTempDirs(): void {
+  if (process.env.MANY_HATS_KEEP_TMP) return;
+  for (const dir of made) removeTree(dir);
+}
+
+/** Removes a folder, first making writable what fault-injection tests locked (never following links). */
+function removeTree(dir: string): void {
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return;
+  } catch {
+    // A locked folder inside: open it up below.
+  }
+  const open = (p: string): void => {
+    try {
+      fs.chmodSync(p, 0o700);
+      for (const e of fs.readdirSync(p, { withFileTypes: true }))
+        if (e.isDirectory()) open(path.join(p, e.name));
+    } catch {
+      // Gone already, or not ours to change.
+    }
+  };
+  open(dir);
+  try {
+    fs.rmSync(dir, { recursive: true, force: true });
+  } catch {
+    // Left for the system's temp-folder cleanup.
+  }
 }
 
 export interface FakeHome {

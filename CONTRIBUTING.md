@@ -36,7 +36,7 @@ Before a release, also run:
 - `npm run test:e2e`: Many Hats with the real Claude Code extension in the latest VS Code. It opens real Claude Code tabs, signed out, and checks which account each one started on;
 - `npm run canary`: checks the latest Claude Code for everything Many Hats relies on. CI also runs it every night.
 
-The editor tests use a throwaway home folder and editor profile, so they never touch your accounts or settings.
+The editor tests use a throwaway home folder and editor profile, so they never touch your accounts or settings. Every test removes its temporary folders when it's done (`MANY_HATS_KEEP_TMP=1` keeps them); an editor test run that fails keeps its sandbox and prints where it is.
 
 ## How the code is organised
 

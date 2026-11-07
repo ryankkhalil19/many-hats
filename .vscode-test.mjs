@@ -11,8 +11,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+const sandboxes = [];
+// Removed after a passing run; kept after a failing one, with the editor's profile and logs.
+process.on('exit', (code) => {
+  for (const base of sandboxes) {
+    if (code === 0) fs.rmSync(base, { recursive: true, force: true });
+    else console.log(`Kept the test sandbox for a look: ${base}`);
+  }
+});
+
 function sandbox() {
   const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'many-hats-it-')));
+  sandboxes.push(base);
   const dirs = {
     home: path.join(base, 'home'),
     workspace: path.join(base, 'workspace'),
