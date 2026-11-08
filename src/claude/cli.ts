@@ -1,9 +1,17 @@
 /**
  * The Claude Code CLI, used only for what the CLI itself does best: signing a config folder in
- * (`claude auth login`) and out (`claude auth logout`). Many Hats never handles a token.
+ * (`claude auth login`) and out (`claude auth logout`), its own /usage, and its own fork to copy a
+ * session. Many Hats never handles a token.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+/** A background run shouldn't update Claude Code or send its analytics. */
+export const QUIET_ENV = {
+  DISABLE_AUTOUPDATER: '1',
+  DISABLE_TELEMETRY: '1',
+  DISABLE_ERROR_REPORTING: '1',
+} as const;
 
 /** Environment variables that make Claude use a login other than its config folder's. */
 export const LOGIN_OVERRIDE_VARS = [

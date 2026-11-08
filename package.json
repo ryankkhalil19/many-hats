@@ -2,7 +2,7 @@
   "name": "many-hats",
   "displayName": "Many Hats for Claude Code",
   "description": "Run each Claude Code tab on its own Claude account, side by side in one window, with every account's usage and sessions at a glance. macOS.",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "preview": true,
   "publisher": "ryankkhalil19",
   "author": "ryankkhalil19",
@@ -72,6 +72,11 @@
       {
         "command": "manyHats.moveTab",
         "title": "Move Claude Code Tab to Account…",
+        "category": "Many Hats"
+      },
+      {
+        "command": "manyHats.copyTab",
+        "title": "Copy Claude Code Tab to Account…",
         "category": "Many Hats"
       },
       {

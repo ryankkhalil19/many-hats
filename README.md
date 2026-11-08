@@ -23,11 +23,11 @@ Maybe you have a work account and a personal one, or one account per client. Cla
 
 - **A tab per account.** Start a new Claude Code tab on any account, or pick the account new tabs start on.
 - **Sessions remember their account.** A conversation reopens on the account it belongs to, whether you restore it after a reload, open it from history or open it in another window.
-- **Every account at a glance.** The sidebar shows each account's plan and usage windows (5-hour, weekly, per model), and when each one resets. While it's open, the figures stay current: Many Hats has Claude Code check each account every 15 minutes, and ↻ checks right away.
-- **Your sessions, grouped by account.** Search, open, rename, archive, delete, or move a session to another account.
+- **Every account at a glance.** The sidebar shows each account's plan and usage windows (5-hour, weekly, per model), and when each one resets. While it's open, the figures stay current: Many Hats has Claude Code check each account every 15 minutes, and ↻ checks right away. Minimize a card to one line of usage when you only need the numbers.
+- **Your sessions, grouped by account.** Search, open, rename, archive, delete, move a session to another account, or copy it to one.
 - **Safe by design.**
   - Many Hats never reads or stores your login tokens. Each account signs in through Claude Code's own `claude auth login`.
-  - Many Hats itself makes no network calls and has no telemetry. To refresh an account's usage, it runs Claude Code's own `/usage` for that account (with your hooks off and no session saved), and Claude Code fetches the figures with that account's login.
+  - Many Hats itself makes no network calls and has no telemetry. To refresh an account's usage, it runs Claude Code's own `/usage` for that account (with your hooks and MCP servers off and no session saved), and Claude Code fetches the figures with that account's login.
 
 ## Requirements
 
@@ -49,6 +49,7 @@ Your existing Claude Code login is the **default** account. To make new tabs in 
 - **New tabs.** Many Hats sets the account for new tabs in the window's environment, which Claude Code uses when it starts a tab.
 - **A small launcher.** Claude Code starts every tab through it (its `claudeCode.claudeProcessWrapper` setting). The launcher starts a resumed session on the account it belongs to.
 - **Moving a session.** Moving changes the account its tab starts on next time. A tab that's open keeps running where it is until it restarts.
+- **Copying a session.** Claude Code makes the copy with its own fork, run on the account you pick. The copy is a session of its own next to the original, with a new ID, the name you give it, and that account as its owner.
 
 The details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -61,6 +62,7 @@ The Command Palette, under "Many Hats":
 | Choose Account for New Claude Code Tabs              | Picks the account new tabs in this window start on. The status bar opens it too.     |
 | Open Claude Code Tab on Account…                     | A new tab on any account, leaving the account for new tabs as it is.                 |
 | Move Claude Code Tab to Account…                     | The tab's session belongs to that account from now on.                               |
+| Copy Claude Code Tab to Account…                     | A copy of the tab's conversation, as a new session on that account.                  |
 | Add Account… / Sign In to Account… / Remove Account… | Manages your accounts.                                                               |
 | Show Claude Code Tabs by Account                     | Which open tab runs on which account.                                                |
 | Refresh Sessions and Usage                           | Rescans this window's tabs and refreshes every account's usage. The sidebar's ↻ too. |
@@ -105,6 +107,14 @@ To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 - The account it was first seen running on, from its first message, until you move it. A tab you open and never use has nothing to reopen, so Many Hats doesn't record it.
 - Sessions Many Hats hasn't seen running yet are listed under **Unassigned**. Opening one starts it on the account for new tabs.
+
+**What does Copy to account copy?**
+
+- The conversation, as a new session on the account you pick: its own ID and name, with that account as its owner. The original stays as it is, even while it's open.
+- The conversation as Claude Code would continue it. After a compaction, the copy starts from the compaction's summary, and the earlier messages stay in the original only. That's why copying even a long conversation takes seconds and makes a small copy.
+- Claude Code makes the copy, with its own `--fork-session`. No prompt is sent and nothing is spent.
+- Files the original saved, such as long tool outputs, stay in the original's folders, and the copy reads them from there. Keep the original while the copy needs them.
+- A copy starts with its own empty scratchpad, no background tasks or scheduled jobs, and can't rewind code changes made before it was copied.
 
 **Why only macOS?**
 

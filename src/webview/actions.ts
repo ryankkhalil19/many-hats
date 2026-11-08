@@ -5,12 +5,11 @@ import { rowOf, select } from './selection';
 import { account } from './view';
 import type { Sidebar } from './sidebar';
 
-export function openSession(sb: Sidebar, id: string, accountName?: string): void {
-  const s = sb.session(id);
-  if (!s) return;
+/** Opens a session in a tab, on its own account. */
+export function openSession(sb: Sidebar, id: string): void {
+  if (!sb.session(id)) return;
   select(sb, id, false);
-  const target = accountName ?? s.account ?? undefined;
-  sb.post(target ? { type: 'open', id, account: target } : { type: 'open', id });
+  sb.post({ type: 'open', id });
 }
 
 /** Swaps the row's title for a text box. Enter or leaving the box saves; Escape cancels. */
@@ -59,7 +58,7 @@ export function startRename(sb: Sidebar, id: string): void {
 
 const actionsFor = (sb: Sidebar): MenuActions => ({
   post: (m) => sb.post(m),
-  open: (id, name) => openSession(sb, id, name),
+  open: (id) => openSession(sb, id),
   rename: (id) => startRename(sb, id),
 });
 

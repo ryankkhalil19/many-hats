@@ -3,7 +3,7 @@
  * tested under Node. menu.ts shows the items; actions.ts supplies what they do.
  */
 import { I } from './icons';
-import { avatarLetter, esc, hue, labelOf } from './format';
+import { labelOf } from './format';
 import type { AccountView, SessionView, SidebarState, ToHost } from '../shared/protocol';
 
 /** One line of a menu: a separator, a heading, or an item (icon is trusted markup; the rest is text). */
@@ -22,20 +22,15 @@ export type MenuItem =
 
 export interface MenuActions {
   post(message: ToHost): void;
-  /** Opens the session in a tab: on `account`, or on its own account. */
-  open(id: string, account?: string): void;
+  /** Opens the session in a tab, on its own account. */
+  open(id: string): void;
   rename(id: string): void;
 }
 
-function avatar(state: SidebarState, a: AccountView): string {
-  const h = hue(
-    state.accounts.map((x) => x.name),
-    a.name,
-  );
-  return `<span class="avatar sm" data-hue="${h}">${esc(avatarLetter(a))}</span>`;
-}
-
-/** A session's menu: open it (on any signed-in account), rename, archive, move, delete. */
+/**
+ * A session's menu: open, rename, archive, copy its ID; move it to an account, or copy it to one
+ * (its own account too: a duplicate); delete.
+ */
 export function sessionMenuItems(state: SidebarState, s: SessionView, act: MenuActions): MenuItem[] {
   const { id } = s;
   const current = s.movingTo ?? s.account;
@@ -51,15 +46,6 @@ export function sessionMenuItems(state: SidebarState, s: SessionView, act: MenuA
       : { label: 'Archive', icon: I.archive, run: () => act.post({ type: 'archive', id, archived: true }) },
     { label: 'Copy session ID', icon: I.copy, run: () => act.post({ type: 'copyId', id }) },
     { sep: true },
-    { header: 'Open on account' },
-    ...state.accounts
-      .filter((a) => a.signedIn)
-      .map((a): MenuItem => ({
-        label: labelOf(a),
-        detail: a.name === s.account ? 'its own' : a.name,
-        icon: avatar(state, a),
-        run: () => act.open(id, a.name),
-      })),
     { header: 'Move to account' },
     ...state.accounts.map((a): MenuItem => ({
       label: labelOf(a),
@@ -67,6 +53,13 @@ export function sessionMenuItems(state: SidebarState, s: SessionView, act: MenuA
       detail: a.name === current ? 'current' : a.signedIn ? a.name : 'not signed in',
       disabled: a.name === current,
       run: () => act.post({ type: 'move', id, account: a.name }),
+    })),
+    { header: 'Copy to account' },
+    ...state.accounts.map((a): MenuItem => ({
+      label: labelOf(a),
+      icon: I.duplicate,
+      detail: a.name === current ? 'duplicate' : a.signedIn ? a.name : 'not signed in',
+      run: () => act.post({ type: 'copy', id, account: a.name }),
     })),
     { sep: true },
     {

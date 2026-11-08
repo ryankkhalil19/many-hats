@@ -88,40 +88,50 @@ test('renders the accounts and the folder’s sessions grouped by account', { sk
   );
 });
 
-test('a click opens a session on its account; the menu moves it to another', { skip }, async () => {
-  await forget();
-  await page.click(`${row(3)} .title`);
-  assert.deepEqual(await posted(), [{ type: 'open', id: id(3), account: 'default' }]);
-  assert.ok(await page.eval(`document.querySelector(${json(row(3))}).classList.contains('selected')`));
+test(
+  'a click opens a session on its account; the menu moves it, or copies it, to another',
+  { skip },
+  async () => {
+    await forget();
+    await page.click(`${row(3)} .title`);
+    assert.deepEqual(await posted(), [{ type: 'open', id: id(3) }]);
+    assert.ok(await page.eval(`document.querySelector(${json(row(3))}).classList.contains('selected')`));
 
-  await openSessionMenu(3);
-  assert.deepEqual(await menuLabels(), [
-    'Open in a tab',
-    'Rename',
-    'Archive',
-    'Copy session ID',
-    '# Open on account',
-    'you@example.com',
-    'you@work.example',
-    '# Move to account',
-    'you@example.com [off]',
-    'you@work.example',
-    'you@client.example',
-    'Delete (close it first) [off]',
-  ]);
-  await forget();
-  await page.click(await menuItem('you@work.example', 'Move to account'));
-  assert.deepEqual(await posted(), [{ type: 'move', id: id(3), account: 'work' }]);
-  assert.equal(await page.eval(`document.querySelector('.menu')`), null, 'the menu closes');
-  await page.until(
-    `document.querySelector(${json(row(3))}).querySelector('.chip')?.textContent === '→ work'`,
-  );
+    await openSessionMenu(3);
+    assert.deepEqual(await menuLabels(), [
+      'Open in a tab',
+      'Rename',
+      'Archive',
+      'Copy session ID',
+      '# Move to account',
+      'you@example.com [off]',
+      'you@work.example',
+      'you@client.example',
+      '# Copy to account',
+      'you@example.com',
+      'you@work.example',
+      'you@client.example',
+      'Delete (close it first) [off]',
+    ]);
+    await forget();
+    await page.click(await menuItem('you@work.example', 'Move to account'));
+    assert.deepEqual(await posted(), [{ type: 'move', id: id(3), account: 'work' }]);
+    assert.equal(await page.eval(`document.querySelector('.menu')`), null, 'the menu closes');
+    await page.until(
+      `document.querySelector(${json(row(3))}).querySelector('.chip')?.textContent === '→ work'`,
+    );
 
-  await openSessionMenu(4);
-  await forget();
-  await page.click(await menuItem('you@example.com', 'Open on account'));
-  assert.deepEqual(await posted(), [{ type: 'open', id: id(4), account: 'default' }]);
-});
+    await openSessionMenu(4);
+    await forget();
+    await page.click(await menuItem('you@client.example', 'Copy to account'));
+    assert.deepEqual(await posted(), [{ type: 'copy', id: id(4), account: 'client' }]);
+    const title = await titleOf(4);
+    await page.until(
+      `[...document.querySelectorAll('.row .title')].some((t) => t.textContent === ${json(`${title} (copy)`)})`,
+    );
+    assert.equal(await titleOf(4), title, 'the original stays as it is');
+  },
+);
 
 test(
   'a right-click opens the menu at the pointer; Escape closes it and gives focus back',
@@ -180,7 +190,7 @@ test('the keyboard: arrows, Home, End, Enter, F2 to rename, Escape to cancel, �
   assert.ok(await page.eval(`document.querySelector(${json(row(1))}).classList.contains('selected')`));
   await forget();
   await page.key('Enter');
-  assert.deepEqual(await posted(), [{ type: 'open', id: id(1), account: 'default' }]);
+  assert.deepEqual(await posted(), [{ type: 'open', id: id(1) }]);
 
   await page.key('F2');
   assert.equal(await page.eval(`document.activeElement.className`), 'rename-input');
@@ -288,6 +298,41 @@ test(
     assert.ok(!(await page.eval(`document.querySelector('#sec-accounts').classList.contains('collapsed')`)));
   },
 );
+
+test('each account card minimizes to one line of usage and comes back, on its own', { skip }, async () => {
+  const card = (name) => `.card[data-account="${name}"]`;
+  const toggle = (name) => `${card(name)} [data-toggle="card:${name}"]`;
+  const is = (name, cls) =>
+    page.eval(`document.querySelector(${json(card(name))}).classList.contains(${json(cls)})`);
+  await forget();
+  await page.click(toggle('work'));
+  assert.ok(await is('work', 'minimized'));
+  assert.ok(!(await is('default', 'minimized')), 'only that card');
+  assert.equal(await page.eval(`document.querySelectorAll(${json(`${card('work')} .limit`)}).length`), 0);
+  assert.match(
+    await page.eval(`document.querySelector(${json(`${card('work')} .mini-usage`)}).textContent`),
+    /\d+%/,
+    'its usage stays in one line',
+  );
+  assert.equal(await page.eval(`document.querySelector(${json(`${card('work')} [data-act="new"]`)})`), null);
+  assert.equal(
+    await page.eval(`document.activeElement === document.querySelector(${json(toggle('work'))})`),
+    true,
+    'focus stays on the button',
+  );
+  assert.equal(
+    await page.eval(`document.querySelector(${json(toggle('work'))}).getAttribute('aria-expanded')`),
+    'false',
+  );
+  assert.deepEqual(await posted(), [], 'it’s the view’s own choice: nothing is sent');
+  // A new state from the extension keeps it minimized, and so does the view coming back.
+  await page.eval(`window.postMessage({ type: 'state', state: JSON.parse(JSON.stringify(state)) }, '*')`);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(await is('work', 'minimized'));
+  await page.click(toggle('work'));
+  assert.ok(!(await is('work', 'minimized')));
+  assert.equal(await page.eval(`document.querySelectorAll(${json(`${card('work')} .limit`)}).length`), 3);
+});
 
 test('the refresh button asks for fresh usage and shows it updating', { skip }, async () => {
   const foot = '.card[data-account="work"] .limits-foot';

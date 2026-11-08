@@ -78,12 +78,13 @@ export type ToWebview = { type: 'state'; state: SidebarState };
 export type ToHost =
   | { type: 'ready' }
   | { type: 'refresh' }
-  | { type: 'open'; id: string; account?: string }
+  | { type: 'open'; id: string }
   | { type: 'new'; account: string }
   | { type: 'rename'; id: string; title: string }
   | { type: 'archive'; id: string; archived: boolean }
   | { type: 'delete'; id: string }
   | { type: 'move'; id: string; account: string }
+  | { type: 'copy'; id: string; account: string }
   | { type: 'pick'; account: string }
   | { type: 'signIn'; account: string }
   | { type: 'addAccount' }
@@ -113,8 +114,7 @@ export function parseToHost(m: unknown): ToHost | undefined {
     case 'usageDetails':
       return { type: o.type };
     case 'open':
-      if (!id || (o.account !== undefined && !account)) return undefined;
-      return account ? { type: 'open', id, account } : { type: 'open', id };
+      return id ? { type: 'open', id } : undefined;
     case 'delete':
     case 'copyId':
       return id ? { type: o.type, id } : undefined;
@@ -125,7 +125,8 @@ export function parseToHost(m: unknown): ToHost | undefined {
     case 'refreshUsage':
       return account ? { type: o.type, account } : undefined;
     case 'move':
-      return id && account ? { type: 'move', id, account } : undefined;
+    case 'copy':
+      return id && account ? { type: o.type, id, account } : undefined;
     case 'archive':
       return id && typeof o.archived === 'boolean'
         ? { type: 'archive', id, archived: o.archived }

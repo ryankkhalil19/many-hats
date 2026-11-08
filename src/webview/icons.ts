@@ -24,6 +24,10 @@ export const I = {
   copy: svg(
     '<rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5V3.2a.7.7 0 0 0-.7-.7H3.2a.7.7 0 0 0-.7.7v6.6c0 .4.3.7.7.7h2.3"/>',
   ),
+  /** The copy icon with a plus in the front sheet: a new copy. */
+  duplicate: svg(
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 5.5V3.2a.7.7 0 0 0-.7-.7H3.2a.7.7 0 0 0-.7.7v6.6c0 .4.3.7.7.7h2.3M9.5 7.6v3.8M7.6 9.5h3.8"/>',
+  ),
   warning: svg('<path d="M8 2.5 14 13H2zM8 6.5v3M8 11.3v.2"/>'),
   refresh: svg('<path d="M13 8a5 5 0 1 1-1.46-3.54M13 2.5v3h-3"/>'),
 };

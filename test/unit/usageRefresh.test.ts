@@ -79,9 +79,22 @@ function setup(o: { defaultAt?: number; workAt?: number } = {}) {
     run: async (file, args, options) => {
       calls.push({ file, args, options });
       const dir = options?.env?.CLAUDE_CONFIG_DIR;
-      await ctl.behave(dir ? path.join(dir, '.claude.json') : h.store.configFile(undefined));
+      // Like execFile with a signal: aborting stops the program, and the run fails with an AbortError.
+      const aborted = new Promise<never>((_, reject) =>
+        options?.signal?.addEventListener('abort', () =>
+          reject(
+            Object.assign(new Error('The operation was aborted'), { name: 'AbortError', code: 'ABORT_ERR' }),
+          ),
+        ),
+      );
+      aborted.catch(() => undefined);
+      await Promise.race([
+        ctl.behave(dir ? path.join(dir, '.claude.json') : h.store.configFile(undefined)),
+        aborted,
+      ]);
       return '';
     },
+    watchMs: 5,
     claudeBinary: () => '/fake/claude',
     env,
     log: ctl.log,
@@ -117,6 +130,7 @@ test('usage refresh: Claude Code’s own /usage, for exactly that account, quiet
     '-p',
     '/usage',
     '--no-session-persistence',
+    '--strict-mcp-config',
     '--settings',
     '{"disableAllHooks":true}',
   ]);
@@ -144,6 +158,42 @@ test('usage refresh: Claude Code’s own /usage, for exactly that account, quiet
     'the default account: Claude Code’s own folder',
   );
   assert.equal(t.r.fetchedAt('default'), NOW);
+});
+
+test('usage refresh: Claude Code is stopped once it has saved the figures, before its long analysis', async () => {
+  const t = setup({ workAt: NOW - 20 * MIN });
+  t.ctl.behave = (file) => {
+    // Claude Code 2.1.3xx saves the figures in seconds, then reads every session on the machine
+    // for "What's contributing to your usage?", which can run past the time allowed.
+    signIn(file, 'me@work.example', 'uuid-work', t.now());
+    return new Promise<void>(() => undefined);
+  };
+  const started = Date.now();
+  const out = await t.r.refresh('work');
+  const stopped = t.calls[0]?.options?.signal?.aborted === true;
+  assert.equal(out, 'refreshed');
+  assert.equal(stopped, true, 'the run is stopped');
+  assert.ok(Date.now() - started < 2000, 'without waiting for the analysis');
+  assert.equal(t.r.lastError('work'), undefined);
+  assert.equal(t.r.isRefreshing('work'), false);
+  // A run that fails before saving anything still fails, and isn't mistaken for a stop.
+  t.advance(UsageRefresher.FRESH_MS);
+  t.ctl.behave = () => Promise.reject(Object.assign(new Error('Command failed'), { code: 1 }));
+  assert.equal(await t.r.refresh('work'), 'failed');
+  assert.equal(t.r.lastError('work'), 'Claude Code’s CLI failed (exit code 1).');
+  assert.ok(
+    t.log.lines.some((l) => l.includes('(exit code 1)')),
+    'the log says how it ended',
+  );
+});
+
+test('usage refresh: figures under a minute old are what Claude Code would answer with, so nothing runs', async () => {
+  const t = setup({ workAt: NOW - 30_000 });
+  assert.equal(await t.r.refresh('work'), 'refreshed');
+  assert.equal(t.calls.length, 0);
+  t.advance(UsageRefresher.FRESH_MS);
+  assert.equal(await t.r.refresh('work'), 'refreshed');
+  assert.equal(t.calls.length, 1, 'older than that, it runs');
 });
 
 test('usage refresh: signed-in accounts with stale or no figures are due, refreshed one at a time', async () => {
@@ -206,6 +256,7 @@ test('usage refresh: a failure reads as a few words, pauses automatic refreshes,
   assert.equal(await t.r.refresh('work'), 'refreshed', 'figures from the last minute are an answer too');
   assert.equal(t.r.lastError('work'), undefined, 'success clears the failure');
 
+  t.advance(UsageRefresher.FRESH_MS);
   const none = new UsageRefresher({ ...t.deps, claudeBinary: () => undefined });
   const before = t.calls.length;
   assert.equal(await none.refresh('work'), 'failed');

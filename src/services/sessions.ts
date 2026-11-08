@@ -1,16 +1,23 @@
 /**
- * What can be done with a session: open it, start a new one on an account, move it, rename,
- * archive or delete it. These return outcomes; the UI decides what to tell the user.
+ * What can be done with a session: open it, start a new one on an account, move or copy it to an
+ * account, rename, archive or delete it. These return outcomes; the UI decides what to tell the user.
  */
+import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { Archive } from '../state/archive';
 import type { Assignments } from '../state/assignments';
 import type { AccountStore } from '../state/accounts';
 import type { NextTab } from '../state/nextTab';
+import { cliEnv, QUIET_ENV } from '../claude/cli';
 import type { Compat } from '../claude/compat';
+import { checkCopy, copyName, forkArgs } from '../claude/fork';
 import { isAlive, readLiveSessions, type LiveSession } from '../claude/liveSessions';
+import { projectDir } from '../claude/paths';
 import { renameSession, sessionPaths } from '../claude/transcripts';
-import { UserError } from '../core/errors';
+import { errorText, UserError } from '../core/errors';
 import { DEFAULT_ACCOUNT, extraOrUndefined } from '../core/ids';
+import type { Runner } from '../infra/exec';
 import type { Logger } from '../infra/log';
 import type { Platform } from '../platform/types';
 import type { Scanner } from './scanner';
@@ -18,6 +25,9 @@ import type { PickService } from './pick';
 
 /** How long to wait for the new tab's process once another new process (on another account) shows up. */
 const NEW_TAB_SETTLE_MS = 2000;
+
+/** Claude Code reads the whole conversation to copy it: a long one on a busy Mac takes a while. */
+const COPY_TIMEOUT_MS = 5 * 60_000;
 
 /** Opening Claude Code tabs: Claude Code's own command. */
 export interface ClaudeTabs {
@@ -38,8 +48,16 @@ export interface MoveOutcome {
   signedIn: boolean;
 }
 
-export type OpenOutcome =
-  { kind: 'opened' } | { kind: 'focused' } | { kind: 'elsewhere' } | { kind: 'moved'; move: MoveOutcome };
+export type OpenOutcome = { kind: 'opened' } | { kind: 'focused' } | { kind: 'elsewhere' };
+
+export interface CopyOutcome {
+  /** The copy's session ID. */
+  id: string;
+  /** Its name, as given to Claude Code. */
+  name: string;
+  /** Whether the account it's on is signed in, so it can be opened now. */
+  signedIn: boolean;
+}
 
 export interface NewOutcome {
   expected: string;
@@ -62,14 +80,24 @@ export interface SessionDeps {
   log: Logger;
   hostPid: number;
   wrapperIsOurs: () => boolean;
+  /** Runs Claude Code's CLI, for copies. */
+  run: Runner;
+  claudeBinary: () => string | undefined;
+  /** The environment the CLI starts from (the login variables are taken out of it). */
+  env: NodeJS.ProcessEnv;
   sleep?: (ms: number) => Promise<void>;
   newTabTimeoutMs?: number;
+  copyTimeoutMs?: number;
+  /** New session IDs (tests use their own). */
+  newId?: () => string;
   /** Whether a pid is a live process (tests use their own). */
   alive?: (pid: number) => boolean;
 }
 
 export class SessionService {
   private queue: Promise<unknown> = Promise.resolve();
+  /** Copies run one at a time: each one has Claude Code read a whole conversation. */
+  private copies: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly deps: SessionDeps) {}
 
@@ -167,25 +195,19 @@ export class SessionService {
   }
 
   /**
-   * Open a session in a tab, on its own account unless another is given (which moves it there).
-   * A session open in this window is brought forward; one open in another window is left there.
+   * Open a session in a tab, on its own account (the launcher starts it there). A session open in
+   * this window is brought forward; one open in another window is left there.
    */
-  async openSession(id: string, account?: string): Promise<OpenOutcome> {
-    const { store, assignments, tabs, scanner, platform, hostPid, log } = this.deps;
+  async openSession(id: string): Promise<OpenOutcome> {
+    const { tabs, scanner, platform, hostPid } = this.deps;
     const live = this.live(id);
     if (live) {
       const here =
         scanner.isHere(live.pid) ||
         (await platform.claudeChildren(hostPid).catch(() => [] as number[])).includes(live.pid);
       if (!here) return { kind: 'elsewhere' };
-      const current = await this.accountRunningOn(live.pid);
-      if (account && current && account !== current)
-        return { kind: 'moved', move: await this.moveSession(id, account) };
       await tabs.open(id);
       return { kind: 'focused' };
-    }
-    if (account && store.usable(account) && assignments.set(id, account, 'moved')) {
-      log.info(`session ${id} now belongs to ${account} (opened there)`);
     }
     await tabs.open(id);
     return { kind: 'opened' };
@@ -206,6 +228,143 @@ export class SessionService {
       );
     const signedIn = Boolean(store.profile(extraOrUndefined(account)).email);
     return { changed, running, runsThere, signedIn };
+  }
+
+  /**
+   * Copy a session to an account (its own account too: a duplicate). Claude Code itself makes the
+   * copy, with its own fork run on that account (claude/fork.ts): a new session next to the
+   * original, under a new ID and the given name, owned by that account. The copy then belongs to
+   * that account. The original is only read, so it can stay open, even mid-turn: the copy has what
+   * was saved by then. Copies run one at a time.
+   * @param folder the folder the session runs in, whose project folder holds its transcript
+   */
+  copySession(id: string, account: string, name: string, folder: string): Promise<CopyOutcome> {
+    const run = this.copies.then(() => this.copy(id, account, name, folder));
+    this.copies = run.catch(() => undefined);
+    return run;
+  }
+
+  private async copy(id: string, account: string, name: string, folder: string): Promise<CopyOutcome> {
+    const { store, assignments, claudeBinary, env, log } = this.deps;
+    if (!store.usable(account)) throw new UserError(`There is no account "${account}".`);
+    const clean = copyName(name);
+    if (!clean) throw new UserError('Give the copy a name.');
+    const home = projectDir(store.defaultDir, folder);
+    const source = path.join(home, `${id}.jsonl`);
+    if (!fs.existsSync(source))
+      throw new UserError(
+        'That session’s conversation isn’t saved in this folder, so there’s nothing to copy.',
+      );
+    const binary = claudeBinary();
+    if (!binary)
+      throw new UserError(
+        'Claude Code’s CLI wasn’t found, and it’s what makes the copy. Install or update the Claude Code extension, then try again.',
+      );
+    const copyId = (this.deps.newId ?? randomUUID)();
+    const configDir = store.configDirOf(extraOrUndefined(account));
+    // Assigned before it exists: while Claude Code makes the copy, its process shows up like a tab
+    // of this window, and the scanner would otherwise record the copy as first seen there.
+    assignments.set(copyId, account, 'copied');
+    try {
+      await this.deps.run(binary, forkArgs(source, copyId, clean), {
+        env: { ...cliEnv(env, configDir), ...QUIET_ENV },
+        cwd: folder,
+        timeoutMs: this.deps.copyTimeoutMs ?? COPY_TIMEOUT_MS,
+      });
+    } catch (e) {
+      log.warn(`copying session ${id} to ${account} failed: ${errorText(e)}`);
+      await this.discardCopy(copyId, folder, configDir);
+      throw new UserError(`Claude Code couldn’t copy the session: ${runFailure(e)}.`);
+    }
+    try {
+      const file = this.placeCopy(copyId, folder, configDir);
+      const check = checkCopy(file, id, copyId, clean);
+      if (!check.ok)
+        throw new UserError(
+          `Claude Code didn’t make the copy (${check.why}). Collect Diagnostics and report it, please.`,
+        );
+      if (!check.named) await renameSession(file, copyId, clean);
+    } catch (e) {
+      log.warn(`copying session ${id} to ${account} failed after Claude Code ran: ${errorText(e)}`);
+      await this.discardCopy(copyId, folder, configDir);
+      throw e instanceof UserError ? e : new UserError(`The copy couldn’t be finished: ${errorText(e)}`);
+    }
+    log.info(`session ${id} copied to ${account} as ${copyId}`);
+    return { id: copyId, name: clean, signedIn: Boolean(store.profile(extraOrUndefined(account)).email) };
+  }
+
+  /**
+   * The project folders Claude Code may have written a copy to, the original's first. It writes to
+   * the project folder of the folder it runs in, which it knows by its real path, so a folder
+   * opened through a symlink has a second one. So does an account whose shared projects folder
+   * isn't linked. Each folder is listed once, however many paths lead to it.
+   */
+  private copyDirs(folder: string, configDir: string | undefined): string[] {
+    const { defaultDir } = this.deps.store;
+    let real = folder;
+    try {
+      real = fs.realpathSync(folder);
+    } catch {
+      // gone: only the path as given
+    }
+    const seen = new Set<string>();
+    const dirs: string[] = [];
+    for (const base of [defaultDir, configDir ?? defaultDir])
+      for (const f of [folder, real]) {
+        const dir = projectDir(base, f);
+        let key = dir;
+        try {
+          key = fs.realpathSync(dir);
+        } catch {
+          // not there (yet): known by its path
+        }
+        if (seen.has(key)) continue;
+        seen.add(key);
+        dirs.push(dir);
+      }
+    return dirs;
+  }
+
+  /**
+   * The copy, next to its original: moved there if Claude Code wrote it to another project folder
+   * (copyDirs), so this window lists it and resumes it as it does the original.
+   * @returns its transcript, where it is now (it may not exist: checkCopy reports that)
+   */
+  private placeCopy(copyId: string, folder: string, configDir: string | undefined): string {
+    const [home = projectDir(this.deps.store.defaultDir, folder), ...others] = this.copyDirs(
+      folder,
+      configDir,
+    );
+    const target = path.join(home, `${copyId}.jsonl`);
+    if (fs.existsSync(target)) return target;
+    for (const dir of others) {
+      const file = path.join(dir, `${copyId}.jsonl`);
+      if (!fs.existsSync(file)) continue;
+      fs.mkdirSync(home, { recursive: true });
+      fs.renameSync(file, target);
+      if (fs.existsSync(path.join(dir, copyId)))
+        fs.renameSync(path.join(dir, copyId), path.join(home, copyId));
+      this.deps.log.info(`moved the copy ${copyId} next to its original, from ${dir}`);
+      break;
+    }
+    return target;
+  }
+
+  /**
+   * Anything a failed copy left behind goes to the Trash (it has an ID no one else has), and its
+   * account is let go.
+   */
+  private async discardCopy(copyId: string, folder: string, configDir: string | undefined): Promise<void> {
+    for (const dir of this.copyDirs(folder, configDir))
+      for (const p of [path.join(dir, `${copyId}.jsonl`), path.join(dir, copyId)]) {
+        if (!fs.existsSync(p)) continue;
+        try {
+          await this.deps.trash.trash(p);
+        } catch (e) {
+          this.deps.log.warn(`couldn't move a failed copy's ${p} to the Trash: ${errorText(e)}`);
+        }
+      }
+    this.deps.assignments.remove(copyId);
   }
 
   async rename(file: string, id: string, title: string): Promise<string> {
@@ -232,4 +391,16 @@ export class SessionService {
     log.info(`deleted session ${id}: ${paths.length} item(s) moved to the Trash`);
     return paths.length;
   }
+}
+
+/** Why a run of the CLI failed, in a line: its own error output, not the command line before it. */
+function runFailure(e: unknown): string {
+  if (e !== null && typeof e === 'object' && (e as { killed?: unknown }).killed === true)
+    return 'it took too long, so it was stopped';
+  const lines = errorText(e)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const detail = lines[0]?.startsWith('Command failed:') ? lines.slice(1) : lines;
+  return (detail[0] ?? 'it stopped with an error').replace(/[.]$/, '').slice(0, 300);
 }

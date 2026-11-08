@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import test from 'node:test';
 import { Compat } from '../../src/claude/compat';
 import { cliEnv, cliEnvArgs, findClaudeBinary, LOGIN_OVERRIDE_VARS } from '../../src/claude/cli';
-import { projectDir } from '../../src/claude/paths';
+import { folderOfSession, projectDir } from '../../src/claude/paths';
 import { TranscriptReader } from '../../src/claude/transcripts';
 import { AccountsService } from '../../src/services/accounts';
 import { NO_FOLDER_KEY, PickService, type TerminalEnv } from '../../src/services/pick';
@@ -39,7 +39,7 @@ function terminalEnv(): TerminalEnv & { vars: Map<string, string> } {
 }
 
 /** Everything wired as extension.ts does, against a fake home, platform and editor. */
-function world(options: { wrapperIsOurs?: boolean } = {}) {
+function world(options: { wrapperIsOurs?: boolean; noCli?: boolean } = {}) {
   const h = fakeHome();
   h.addAccount('work', 'me@work.example');
   const log = memoryLogger();
@@ -67,6 +67,9 @@ function world(options: { wrapperIsOurs?: boolean } = {}) {
   const tabs = new FakeTabs();
   const trash = new FakeTrash(path.join(h.home, '.Trash'));
   const alive = new Set<number>([process.pid]);
+  /** Runs of Claude Code for copies, and what the fake one does: fork as Claude Code does. */
+  const copyRuns: { file: string; args: readonly string[]; env?: NodeJS.ProcessEnv; cwd?: string }[] = [];
+  const copies = { fork: fakeFork(h.claude), ids: [COPY, COPY2] };
   const sessions = new SessionService({
     store: h.store,
     assignments,
@@ -81,6 +84,13 @@ function world(options: { wrapperIsOurs?: boolean } = {}) {
     log,
     hostPid,
     wrapperIsOurs,
+    run: (file, args, o) => {
+      copyRuns.push({ file, args, env: o?.env, cwd: o?.cwd });
+      return copies.fork(args, o?.cwd ?? '');
+    },
+    claudeBinary: () => (options.noCli ? undefined : '/x/claude'),
+    env: { PATH: '/bin', CLAUDE_CODE_OAUTH_TOKEN: 'leaked' },
+    newId: () => copies.ids.shift() ?? COPY,
     sleep: noSleep,
     newTabTimeoutMs: 200,
     alive: (pid) => alive.has(pid),
@@ -134,9 +144,47 @@ function world(options: { wrapperIsOurs?: boolean } = {}) {
     sessions,
     accounts,
     runs,
+    copyRuns,
+    copies,
     live,
     talk,
     hostPid,
+  };
+}
+
+const COPY = '44444444-4444-4444-8444-444444444444';
+const COPY2 = '55555555-5555-4555-8555-555555555555';
+const COPY3 = '66666666-6666-4666-8666-666666666666';
+
+/**
+ * What Claude Code's fork does with Many Hats' arguments (checked against the real one by the
+ * canary): the conversation under the new session ID, the original's Remote Control link left
+ * behind, and /rename's title at the end.
+ */
+function fakeFork(claudeDir: string) {
+  return (args: readonly string[], cwd: string): Promise<string> => {
+    const arg = (flag: string): string => args[args.indexOf(flag) + 1] ?? '';
+    const source = fs.readFileSync(arg('--resume'), 'utf8'); // the original's transcript file
+    const copy = arg('--session-id');
+    const name = arg('-p').replace(/^\/rename /, '');
+    const lines = source
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .filter((r) => r.type !== 'bridge-session' && r.type !== 'relocated')
+      .map((r) => JSON.stringify({ ...r, sessionId: copy }));
+    lines.push(JSON.stringify({ type: 'custom-title', customTitle: name, sessionId: copy }));
+    // Claude Code writes into the project folder of the folder it runs in, by its real path.
+    let real = cwd;
+    try {
+      real = fs.realpathSync(cwd);
+    } catch {
+      // a made-up folder: its path as given
+    }
+    const dir = projectDir(claudeDir, real);
+    fs.mkdirSync(path.join(dir, copy), { recursive: true }); // its per-session folder
+    fs.writeFileSync(path.join(dir, `${copy}.jsonl`), `${lines.join('\n')}\n`);
+    return Promise.resolve(`Session renamed to: ${name}\n`);
   };
 }
 
@@ -329,31 +377,204 @@ test('new session with someone else’s process wrapper: new tabs point at the a
   assert.equal(w.env.CLAUDE_CONFIG_DIR, undefined, 'back to the window’s account');
 });
 
-test('open and move: a closed session opens on its account; another account moves it; open elsewhere is left alone', async () => {
+test('open and move: a closed session opens on its account; one open here comes forward; one open elsewhere is left there', async () => {
   const w = world();
   assert.deepEqual(await w.sessions.openSession(A), { kind: 'opened' });
   assert.deepEqual(w.tabs.opened, [A]);
-  assert.deepEqual(await w.sessions.openSession(A, 'work'), { kind: 'opened' });
-  assert.equal(w.assignments.accountOf(A), 'work', 'opening on an account moves it there');
-  // Open in this window on default, opened again on work: it's moved.
+  assert.equal(w.assignments.get(A), undefined, 'opening never changes a session’s account');
+  // Open in this window on default: brought forward; moving it applies when it restarts.
   w.platform.children = [401];
   w.live(401, B, undefined);
   await w.scanner.scan();
-  const moved = await w.sessions.openSession(B, 'work');
-  assert.equal(moved.kind, 'moved');
-  assert.deepEqual(moved.kind === 'moved' && moved.move, {
+  assert.deepEqual(await w.sessions.openSession(B), { kind: 'focused' });
+  assert.deepEqual(await w.sessions.moveSession(B, 'work'), {
     changed: true,
     running: 'here',
     runsThere: false,
     signedIn: true,
   });
-  assert.deepEqual(await w.sessions.openSession(B, 'default'), { kind: 'focused' });
   // Open in another window: not one of this window's processes.
   w.live(9999, C, undefined);
   assert.deepEqual(await w.sessions.openSession(C), { kind: 'elsewhere' });
   const m = await w.sessions.moveSession(C, 'work');
   assert.equal(m.running, 'elsewhere');
   await assert.rejects(w.sessions.moveSession(A, 'nope'), /no account/);
+});
+
+test('copy: Claude Code forks the session on the account it’s for; the copy belongs there, named, and the original is untouched', async () => {
+  const w = world();
+  w.talk(A);
+  const original = path.join(projectDir(w.claude, '/code/app'), `${A}.jsonl`);
+  fs.appendFileSync(original, line({ type: 'bridge-session', sessionId: A, bridgeSessionId: 'cse_x' }));
+  const before = fs.readFileSync(original, 'utf8');
+  const real = fakeFork(w.claude);
+  let during: string | undefined;
+  w.copies.fork = (args, cwd) => {
+    during = w.assignments.get(COPY)?.source; // the scanner could see the fork's process meanwhile
+    return real(args, cwd);
+  };
+  const out = await w.sessions.copySession(A, 'work', '  My\n copy  ', '/code/app');
+  assert.deepEqual(out, { id: COPY, name: 'My copy', signedIn: true });
+  assert.equal(during, 'copied', 'it belongs to its account before Claude Code makes it');
+  assert.equal(w.copyRuns.length, 1);
+  const r = w.copyRuns[0];
+  assert.equal(r?.file, '/x/claude');
+  assert.deepEqual(r?.args, [
+    '-p',
+    '/rename My copy',
+    '--resume',
+    original,
+    '--fork-session',
+    '--session-id',
+    COPY,
+    '--strict-mcp-config',
+    '--settings',
+    '{"disableAllHooks":true}',
+  ]);
+  assert.equal(r?.cwd, '/code/app', 'run in the session’s folder, where its transcript is');
+  assert.equal(r?.env?.CLAUDE_CONFIG_DIR, w.store.dir('work'), 'on the account the copy is for');
+  assert.equal(r?.env?.CLAUDE_CODE_OAUTH_TOKEN, undefined, 'no inherited login');
+  assert.equal(r?.env?.DISABLE_AUTOUPDATER, '1');
+  assert.deepEqual(
+    { ...w.assignments.get(COPY), at: undefined },
+    { account: 'work', source: 'copied', at: undefined },
+  );
+  assert.equal(fs.readFileSync(original, 'utf8'), before, 'the original is only read');
+  assert.equal(w.assignments.get(A), undefined, 'the original keeps its account');
+  assert.match(w.log.lines.join('\n'), new RegExp(`session ${A} copied to work as ${COPY}`));
+  // A duplicate on the default account: no CLAUDE_CONFIG_DIR, so Claude Code uses ~/.claude.
+  const dup = await w.sessions.copySession(A, 'default', 'Twin', '/code/app');
+  assert.equal(dup.id, COPY2);
+  assert.equal(w.copyRuns[1]?.env?.CLAUDE_CONFIG_DIR, undefined);
+  assert.equal(w.assignments.accountOf(COPY2), 'default');
+});
+
+test('copy: an account that isn’t signed in still gets the copy, and the outcome says so', async () => {
+  const w = world();
+  w.addAccount('spare');
+  w.talk(A);
+  const out = await w.sessions.copySession(A, 'spare', 'For later', '/code/app');
+  assert.equal(out.signedIn, false);
+  assert.equal(w.assignments.accountOf(COPY), 'spare');
+});
+
+test('copy: refused with a reason, and nothing left behind, when it can’t be made', async () => {
+  const w = world();
+  const dir = projectDir(w.claude, '/code/app');
+  await assert.rejects(w.sessions.copySession(A, 'work', 'x', '/code/app'), /isn’t saved in this folder/);
+  w.talk(A);
+  await assert.rejects(w.sessions.copySession(A, 'nope', 'x', '/code/app'), /no account "nope"/);
+  await assert.rejects(w.sessions.copySession(A, 'work', ' \n ', '/code/app'), /Give the copy a name/);
+  // Claude Code fails halfway: its partial file and folder go to the Trash, and its own error is shown.
+  w.copies.fork = (args) => {
+    const id = args[args.indexOf('--session-id') + 1] ?? '';
+    fs.writeFileSync(path.join(dir, `${id}.jsonl`), '{"type":"us');
+    fs.mkdirSync(path.join(dir, id));
+    const e = Object.assign(
+      new Error('Command failed: /x/claude -p /rename x\nError: No conversation found'),
+      {
+        code: 1,
+      },
+    );
+    return Promise.reject(e);
+  };
+  await assert.rejects(
+    w.sessions.copySession(A, 'work', 'x', '/code/app'),
+    /couldn’t copy the session: Error: No conversation found\.$/,
+  );
+  assert.equal(fs.existsSync(path.join(dir, `${COPY}.jsonl`)), false);
+  assert.deepEqual(w.trash.trashed, [path.join(dir, `${COPY}.jsonl`), path.join(dir, COPY)]);
+  assert.equal(w.assignments.get(COPY), undefined, 'its account, given before the run, is let go');
+  assert.match(
+    w.log.lines.join('\n'),
+    /copying session \S+ to work failed: Command failed: [^\n]*\nError: No conversation found/,
+    'all of it logged, every line of Claude Code’s error',
+  );
+  // Stopped after the time allowed.
+  w.copies.fork = () => Promise.reject(Object.assign(new Error('Command failed'), { killed: true }));
+  await assert.rejects(w.sessions.copySession(A, 'work', 'x', '/code/app'), /took too long/);
+  // It ran but wrote the original's ID: not a copy, so it's refused and trashed.
+  w.copies.ids = [COPY];
+  w.copies.fork = () => {
+    fs.writeFileSync(path.join(dir, `${COPY}.jsonl`), line({ type: 'user', sessionId: A }));
+    return Promise.resolve('');
+  };
+  await assert.rejects(
+    w.sessions.copySession(A, 'work', 'x', '/code/app'),
+    /didn’t make the copy \(the copy still carries the original’s session ID\)/,
+  );
+  assert.equal(fs.existsSync(path.join(dir, `${COPY}.jsonl`)), false);
+  // No CLI at all.
+  const bare = world({ noCli: true });
+  bare.talk(A);
+  await assert.rejects(bare.sessions.copySession(A, 'work', 'x', '/code/app'), /CLI wasn’t found/);
+});
+
+test('copy: for a folder opened through a symlink, the copy is moved next to the original', async () => {
+  const w = world();
+  const base = tempDir();
+  const realFolder = path.join(base, 'real-app');
+  const link = path.join(base, 'linked-app');
+  fs.mkdirSync(realFolder);
+  fs.symlinkSync(realFolder, link);
+  w.talk(A, link); // listed, and found by Claude Code, under the path the window opened
+  const home = projectDir(w.claude, link);
+  const out = await w.sessions.copySession(A, 'work', 'Linked', link);
+  assert.ok(fs.existsSync(path.join(home, `${out.id}.jsonl`)), 'next to the original');
+  assert.ok(fs.existsSync(path.join(home, out.id)), 'with its folder');
+  const written = projectDir(w.claude, fs.realpathSync(realFolder));
+  assert.notEqual(written, home);
+  assert.equal(
+    fs.existsSync(path.join(written, `${out.id}.jsonl`)),
+    false,
+    'nothing left where it was written',
+  );
+  assert.match(w.log.lines.join('\n'), new RegExp(`moved the copy ${out.id} next to its original`));
+  assert.equal(w.assignments.get(out.id)?.source, 'copied');
+});
+
+test('folderOfSession: the window’s folder whose project folder holds the session', () => {
+  const claude = tempDir();
+  fs.mkdirSync(projectDir(claude, '/code/b'), { recursive: true });
+  fs.writeFileSync(path.join(projectDir(claude, '/code/b'), `${A}.jsonl`), '');
+  assert.equal(folderOfSession(claude, ['/code/a', '/code/b'], A), '/code/b');
+  assert.equal(folderOfSession(claude, ['/code/a'], A), undefined);
+  assert.equal(folderOfSession(claude, [], A), undefined);
+});
+
+test('copy: if /rename didn’t name it, Many Hats does; copies run one at a time', async () => {
+  const w = world();
+  const dir = projectDir(w.claude, '/code/app');
+  w.talk(A);
+  // A Claude Code whose /rename wrote no title: the copy is still good, and gets its name.
+  w.copies.fork = (args) => {
+    const id = args[args.indexOf('--session-id') + 1] ?? '';
+    fs.writeFileSync(path.join(dir, `${id}.jsonl`), line({ type: 'user', sessionId: id }));
+    return Promise.resolve('');
+  };
+  await w.sessions.copySession(A, 'work', 'Named after', '/code/app');
+  assert.match(fs.readFileSync(path.join(dir, `${COPY}.jsonl`), 'utf8'), /"customTitle":"Named after"/);
+  // Two at once: the second starts when the first is done.
+  const order: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const real = fakeFork(w.claude);
+  w.copies.fork = async (args, cwd) => {
+    const id = args[args.indexOf('--session-id') + 1] ?? '';
+    order.push(`start ${id}`);
+    if (id === COPY2) await gate;
+    const out = await real(args, cwd);
+    order.push(`end ${id}`);
+    return out;
+  };
+  w.copies.ids = [COPY2, COPY3];
+  const first = w.sessions.copySession(A, 'work', 'One', '/code/app');
+  const second = w.sessions.copySession(A, 'work', 'Two', '/code/app');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(order, [`start ${COPY2}`], 'the second waits for the first');
+  release();
+  await Promise.all([first, second]);
+  assert.deepEqual(order, [`start ${COPY2}`, `end ${COPY2}`, `start ${COPY3}`, `end ${COPY3}`]);
 });
 
 test('rename, archive and delete (to the Trash, never while open)', async () => {

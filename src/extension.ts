@@ -142,6 +142,9 @@ function start(context: vscode.ExtensionContext, log: Logger, started: number): 
     log,
     hostPid: process.pid,
     wrapperIsOurs,
+    run,
+    claudeBinary,
+    env: process.env,
   });
   const transcripts = new TranscriptReader(compat);
   const health = (): HealthCheck[] =>

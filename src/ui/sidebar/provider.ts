@@ -1,6 +1,6 @@
 /**
  * The sidebar webview: every account with its usage windows, and this window's Claude Code
- * sessions grouped by account, with open / new / rename / move / archive / delete. The UI is in
+ * sessions grouped by account, with open / new / rename / move / copy / archive / delete. The UI is in
  * src/webview; this side builds its state and carries out what it asks, after checking each
  * message (shared/protocol.ts).
  */
@@ -12,7 +12,7 @@ import { reportError } from '../guard';
 import { localFolders } from '../host';
 import { USAGE_PAGE } from '../text';
 import { removeAccount, addAccount, signIn } from '../commands/accounts';
-import { moveSession, newSession, openSession } from '../commands/tabs';
+import { copySession, moveSession, newSession, openSession } from '../commands/tabs';
 import { buildSidebarState, type KnownSession } from './state';
 import { projectDir } from '../../claude/paths';
 import { UserError } from '../../core/errors';
@@ -167,7 +167,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         await this.push(true);
         return true;
       case 'open':
-        await openSession(app, m.id, m.account, this.session(m.id).title);
+        await openSession(app, m.id, this.session(m.id).title);
         return false;
       case 'new':
         await newSession(app, extraOrUndefined(m.account));
@@ -202,6 +202,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
       case 'move':
         await moveSession(app, m.id, m.account, this.session(m.id).title);
         return false;
+      case 'copy': {
+        const s = this.session(m.id);
+        await copySession(app, m.id, m.account, s.title, s.folder);
+        return false;
+      }
       case 'pick':
         await app.pick.set(extraOrUndefined(m.account));
         app.refresh();

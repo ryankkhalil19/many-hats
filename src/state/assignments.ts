@@ -5,8 +5,8 @@
  *
  *   ~/.many-hats/assignments/<session id>    one line: "<account> <source> <ISO time>"
  *
- * - source: how it got there. "observed": first seen running there. "moved": Move, or Open on
- *   another account.
+ * - source: how it got there. "observed": first seen running there. "moved": Move. "copied":
+ *   made there by Copy to account.
  * - A session gets its account the first time it's seen running and keeps it until it's moved.
  *   Seeing it run somewhere else (a terminal, another app) never changes it, so the record can't
  *   flip back and forth.
@@ -22,7 +22,7 @@ import { isAccountName, isSessionId } from '../core/ids';
 import { sweepTempFiles, writeFileAtomic } from '../infra/atomicFile';
 import { readDirOrEmpty } from '../infra/fsx';
 
-export type AssignmentSource = 'observed' | 'moved';
+export type AssignmentSource = 'observed' | 'moved' | 'copied';
 
 export interface Assignment {
   account: string;
@@ -30,7 +30,7 @@ export interface Assignment {
   at: number | undefined;
 }
 
-const SOURCES = new Set<string>(['observed', 'moved']);
+const SOURCES = new Set<string>(['observed', 'moved', 'copied']);
 
 export function parseAssignment(text: string): Assignment | undefined {
   const [account, source, at] = (text.split('\n', 1)[0] ?? '').trim().split(/\s+/);

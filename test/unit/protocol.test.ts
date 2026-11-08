@@ -6,16 +6,13 @@ import { A } from '../helpers/home';
 test('webview messages: the known ones pass, checked field by field', () => {
   assert.deepEqual(parseToHost({ type: 'ready' }), { type: 'ready' });
   assert.deepEqual(parseToHost({ type: 'open', id: A }), { type: 'open', id: A });
-  assert.deepEqual(parseToHost({ type: 'open', id: A, account: 'work' }), {
-    type: 'open',
-    id: A,
-    account: 'work',
-  });
-  assert.deepEqual(parseToHost({ type: 'move', id: A, account: 'default' }), {
-    type: 'move',
-    id: A,
-    account: 'default',
-  });
+  assert.deepEqual(
+    parseToHost({ type: 'open', id: A, account: 'work' }),
+    { type: 'open', id: A },
+    'a session opens on its own account: an account sent along is dropped',
+  );
+  for (const type of ['move', 'copy'])
+    assert.deepEqual(parseToHost({ type, id: A, account: 'default' }), { type, id: A, account: 'default' });
   assert.deepEqual(parseToHost({ type: 'archive', id: A, archived: false }), {
     type: 'archive',
     id: A,
@@ -41,8 +38,10 @@ test('webview messages: anything else is dropped', () => {
     'ready',
     { type: 'eval', code: 'x' },
     { type: 'open', id: '../../etc' },
-    { type: 'open', id: A, account: '../x' },
     { type: 'move', id: A },
+    { type: 'copy', id: A },
+    { type: 'copy', id: A, account: '../x' },
+    { type: 'copy', account: 'work' },
     { type: 'new', account: 'Work' },
     { type: 'archive', id: A, archived: 'yes' },
     { type: 'rename', id: A, title: 'x'.repeat(1001) },

@@ -21,6 +21,7 @@ import {
   row,
   sectionHead,
   sessionGroups,
+  shortLimitLabel,
   visibleSessions,
   type UiState,
 } from '../../src/webview/view';
@@ -157,6 +158,107 @@ test('view: account cards — signed in, signed out, usage, hidden per-model lim
   assert.match(card(ui(), account({}), NOW), /No usage figures yet/);
 });
 
+test('view: a card minimizes to its head and one line of usage, each card on its own', () => {
+  const limits = [
+    {
+      label: 'Session (5hr)',
+      kind: 'session',
+      percent: 99,
+      reset: false,
+      level: 'critical' as const,
+      active: true,
+    },
+    {
+      label: 'Weekly (7 day)',
+      kind: 'weekly_all',
+      percent: 26,
+      reset: false,
+      level: 'normal' as const,
+      active: false,
+    },
+    {
+      label: 'Fable limit',
+      kind: 'weekly_scoped',
+      percent: 12,
+      reset: false,
+      level: 'normal' as const,
+      active: false,
+    },
+  ];
+  const a = account({
+    name: 'work',
+    email: 'me@work.example',
+    usage: { limits, credits: { used: '$1', percent: 1 } },
+  });
+  const open = card(ui(), a, NOW);
+  assert.match(open, /data-act="toggle" data-toggle="card:work"/);
+  assert.match(open, /aria-expanded="true" title="Minimize" aria-label="Minimize me@work\.example"/);
+  assert.doesNotMatch(open, /mini-usage/);
+
+  const min = card(ui({ collapsed: { 'card:work': true } }), a, NOW);
+  assert.match(min, /class="card minimized"/);
+  assert.match(min, /aria-expanded="false" title="Maximize" aria-label="Maximize me@work\.example"/);
+  assert.match(min, /data-act="accountMenu"/, 'its menu stays, with everything the hidden buttons do');
+  assert.match(min, /me@work\.example/);
+  for (const gone of [
+    /class="limit /,
+    /role="progressbar"/,
+    /Usage credits/,
+    /New session/,
+    /Use for new tabs/,
+    /Updated/,
+  ])
+    assert.doesNotMatch(min, gone);
+  assert.deepEqual(
+    [...min.matchAll(/<span class="mini ([^"]*)"[^>]*>([^<]*)<span class="pct">(\d+)%/g)].map((m) => [
+      m[1],
+      m[2]?.trim(),
+      m[3],
+    ]),
+    [
+      ['level-critical active', 'Session', '99'],
+      ['level-normal', 'Weekly', '26'],
+      ['level-normal', 'Fable', '12'],
+    ],
+  );
+  assert.match(min, /title="Session \(5hr\): 99%, the limit currently in effect"/);
+  assert.doesNotMatch(
+    card(ui({ collapsed: { 'card:work': true }, hiddenLimits: { 'work:Fable limit': true } }), a, NOW),
+    />Fable /,
+    'a per-model limit hidden on the account stays hidden',
+  );
+  assert.match(card(ui({ collapsed: { 'card:default': true } }), account({}), NOW), /No usage figures yet/);
+  assert.match(
+    card(ui({ collapsed: { 'card:default': true } }), account({ signedIn: false }), NOW),
+    /mini-usage note">Not signed in/,
+  );
+  assert.doesNotMatch(
+    card(ui({ collapsed: { 'card:default': true } }), a, NOW),
+    /minimized/,
+    'only its own card',
+  );
+  // Like the full card, the one line says when the figures are updating, failed or old.
+  const minimized = ui({ collapsed: { 'card:work': true } });
+  const fresh = { limits, fetchedAtMs: NOW - 5 * 60_000 };
+  assert.doesNotMatch(card(minimized, { ...a, usage: fresh }, NOW), /mini-state/, 'fresh: nothing to say');
+  assert.match(
+    card(minimized, { ...a, usage: fresh, usageRefreshing: true }, NOW),
+    /<span class="mini-state updated" role="status">Updating…<\/span>/,
+  );
+  assert.match(
+    card(minimized, { ...a, usage: fresh, usageError: 'Claude Code saved no new figures.' }, NOW),
+    /<span class="mini-state usage-error" title="Claude Code saved no new figures\.">Couldn’t refresh<\/span>/,
+  );
+  assert.match(
+    card(minimized, { ...a, usage: { limits, fetchedAtMs: NOW - 2 * 3600e3 } }, NOW),
+    /<span class="mini-state updated stale"[^>]*>2h ago<\/span>/,
+  );
+  assert.equal(shortLimitLabel('Session (5hr)'), 'Session');
+  assert.equal(shortLimitLabel('Opus limit'), 'Opus');
+  assert.equal(shortLimitLabel('Credits'), 'Credits');
+  assert.equal(shortLimitLabel('(odd)'), '(odd)');
+});
+
 test('view: the usage line — when the figures are from, updating, stale, failed, and the refresh button', () => {
   const fresh = card(ui(), account({ usage: { fetchedAtMs: NOW - 5 * 60_000, limits: [] } }), NOW);
   assert.match(fresh, /<span class="updated" title="[^"]+">Updated 5m ago<\/span>/);
@@ -274,7 +376,7 @@ function recorder(): { act: MenuActions; calls: unknown[] } {
     calls,
     act: {
       post: (m: ToHost) => calls.push(m),
-      open: (id, account) => calls.push(['open', id, account]),
+      open: (id) => calls.push(['open', id]),
       rename: (id) => calls.push(['rename', id]),
     },
   };
@@ -295,7 +397,7 @@ const run = (items: MenuItem[], label: string, detail?: string): void => {
   it.run();
 };
 
-test('menus: a session — open on signed-in accounts, move to any, delete only when closed', () => {
+test('menus: a session — open, move to any account, copy to any (its own: a duplicate), delete only when closed', () => {
   const s = state({
     accounts: [
       account({ email: 'me@example.com', isPick: true }),
@@ -312,27 +414,35 @@ test('menus: a session — open on signed-in accounts, move to any, delete only 
     'Archive',
     'Copy session ID',
     '---',
-    '# Open on account',
-    'me@example.com (default)',
-    'me@work.example (its own)',
     '# Move to account',
     'me@example.com (default)',
     'me@work.example (current) [off]',
     'me@client.example (not signed in)',
+    '# Copy to account',
+    'me@example.com (default)',
+    'me@work.example (duplicate)',
+    'me@client.example (not signed in)',
     '---',
     'Delete (close it first) [off]',
   ]);
+  assert.ok(
+    !describe(items).some((t) => /Open on account/.test(t)),
+    'Open on account is gone: Move, then Open, does the same',
+  );
   run(items, 'Open in a tab');
-  run(items, 'me@example.com', 'default');
   run(items, 'Rename');
-  run(items, 'me@client.example', 'not signed in');
+  const move = items.filter((it) => 'run' in it && it.label === 'me@client.example');
+  assert.equal(move.length, 2, 'the account is in both lists');
+  for (const it of move) if ('run' in it) it.run();
+  run(items, 'me@work.example', 'duplicate');
   run(items, 'Archive');
   run(items, 'Copy session ID');
   assert.deepEqual(calls, [
-    ['open', B, undefined],
-    ['open', B, 'default'],
+    ['open', B],
     ['rename', B],
     { type: 'move', id: B, account: 'client' },
+    { type: 'copy', id: B, account: 'client' },
+    { type: 'copy', id: B, account: 'work' },
     { type: 'archive', id: B, archived: true },
     { type: 'copyId', id: B },
   ]);
@@ -344,7 +454,7 @@ test('menus: a session — open on signed-in accounts, move to any, delete only 
     text.includes('me@work.example (current) [off]'),
     'a session on its way to an account is already there',
   );
-  assert.ok(text.includes('me@example.com (its own)'), 'until it starts, it opens on its own account');
+  assert.ok(text.includes('me@work.example (duplicate)'), 'and a copy there is a duplicate');
   assert.ok(text.includes('Delete…'));
   calls.length = 0;
   run(moving, 'Unarchive');

@@ -1,10 +1,13 @@
-/** Opening, starting and moving Claude Code tabs, with the prompts around them. */
+/** Opening, starting, moving and copying Claude Code tabs, with the prompts around them. */
 import * as vscode from 'vscode';
 import type { App } from '../app';
+import { localFolders } from '../host';
 import { emailOf, pickAccount } from '../pickers';
 import { label, notSignedIn, tildify } from '../text';
 import { signIn, addAccount, removeAccount, signInPicker } from './accounts';
-import { DEFAULT_ACCOUNT, extraOrUndefined } from '../../core/ids';
+import { copyName, defaultCopyName } from '../../claude/fork';
+import { folderOfSession } from '../../claude/paths';
+import { extraOrUndefined } from '../../core/ids';
 import type { MoveOutcome } from '../../services/sessions';
 
 const reloadWindow = (): Thenable<unknown> => vscode.commands.executeCommand('workbench.action.reloadWindow');
@@ -31,6 +34,7 @@ export async function choose(app: App): Promise<void> {
     { label: '', kind: vscode.QuickPickItemKind.Separator },
     { label: '$(layout-sidebar-left) Open the Many Hats sidebar', action: 'sidebar' },
     { label: '$(arrow-swap) Move a Claude Code tab to another account…', action: 'move' },
+    { label: '$(copy) Copy a Claude Code tab to another account…', action: 'copy' },
     { label: '$(person-add) Add account…', action: 'add' },
     { label: '$(key) Sign in to an account…', action: 'signIn' },
     { label: '$(list-unordered) Show Claude Code tabs by account', action: 'show' },
@@ -47,6 +51,8 @@ export async function choose(app: App): Promise<void> {
       return;
     case 'move':
       return moveTab(app);
+    case 'copy':
+      return copyTab(app);
     case 'add':
       return addAccount(app);
     case 'signIn':
@@ -100,22 +106,50 @@ export async function newSession(app: App, name: string | undefined): Promise<vo
   }
 }
 
-/** Open a session in a tab, on its own account or on another (which moves it there). */
-export async function openSession(
-  app: App,
-  id: string,
-  account: string | undefined,
-  title: string,
-): Promise<void> {
-  const outcome = await app.sessions.openSession(id, account);
+/** Open a session in a tab, on its own account. */
+export async function openSession(app: App, id: string, title: string): Promise<void> {
+  const outcome = await app.sessions.openSession(id);
   if (outcome.kind === 'elsewhere') {
     void vscode.window.showWarningMessage(
       `"${title}" is open in another window. Switch to that window to use it.`,
     );
-  } else if (outcome.kind === 'moved') {
-    await afterMove(app, outcome.move, title, account ?? DEFAULT_ACCOUNT);
   }
   app.refresh();
+}
+
+/**
+ * Copy a session to an account: name the copy, have Claude Code make it, then open it there (or,
+ * if that account isn't signed in, say so). The original stays as it is.
+ * @param folder the folder the session runs in
+ */
+export async function copySession(
+  app: App,
+  id: string,
+  account: string,
+  title: string,
+  folder: string,
+): Promise<void> {
+  const name = await vscode.window.showInputBox({
+    title: `Copy "${title}" to ${account}`,
+    prompt: 'Name the copy. The original stays as it is.',
+    value: defaultCopyName(title),
+    validateInput: (v) => (copyName(v) ? undefined : 'Give the copy a name.'),
+  });
+  if (name === undefined) return;
+  const outcome = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Copying "${title}" to ${account}…` },
+    () => app.sessions.copySession(id, account, name, folder),
+  );
+  app.refresh();
+  if (!outcome.signedIn) {
+    const go = await vscode.window.showWarningMessage(
+      `Copied as "${outcome.name}" on "${account}", which isn't signed in yet. Sign in to it, then open the copy.`,
+      'Sign In',
+    );
+    if (go) signIn(app, extraOrUndefined(account));
+    return;
+  }
+  await openSession(app, outcome.id, outcome.name);
 }
 
 /** Put a session on another account from its next start; offer to restart it now if it's open here. */
@@ -166,6 +200,36 @@ export async function moveTab(app: App): Promise<void> {
   const target = await pickAccount(app, `Move "${tab.label}" to…`, true);
   if (target === null) return;
   await moveSession(app, sessionId, label(target), tab.label);
+}
+
+/** Command: copy an open tab's conversation to an account. */
+export async function copyTab(app: App): Promise<void> {
+  await app.scanner.scan();
+  const tabs = app.scanner
+    .running()
+    .flatMap((r) =>
+      r.sessionId ? [{ r, folder: folderOfSession(app.store.defaultDir, localFolders(), r.sessionId) }] : [],
+    )
+    .filter((t): t is { r: (typeof t)['r']; folder: string } => t.folder !== undefined);
+  if (!tabs.length) {
+    void vscode.window.showInformationMessage(
+      'No Claude Code tab with a saved conversation is open in this window.',
+    );
+    return;
+  }
+  const tab = await vscode.window.showQuickPick(
+    tabs.map((t) => ({
+      label: t.r.title ?? 'Untitled',
+      description: `on ${t.r.account ?? 'another login'}`,
+      tab: t,
+    })),
+    { title: 'Copy which Claude Code tab to another account?' },
+  );
+  const sessionId = tab?.tab.r.sessionId;
+  if (!tab || !sessionId) return;
+  const target = await pickAccount(app, `Copy "${tab.label}" to…`, true);
+  if (target === null) return;
+  await copySession(app, sessionId, label(target), tab.label, tab.tab.folder);
 }
 
 export async function showTabs(app: App): Promise<void> {

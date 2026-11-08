@@ -122,6 +122,10 @@ test('redact: emails, tokens and the home folder never leave in a report', () =>
 
 test('run: output on success, an error with a timeout', async () => {
   assert.equal((await run('/bin/echo', ['hi'])).trim(), 'hi');
+  // Its input is closed at once: cat reads it and ends, instead of waiting until the timeout.
+  const started = Date.now();
+  assert.equal(await run('/bin/cat', [], { timeoutMs: 5000 }), '');
+  assert.ok(Date.now() - started < 4000, 'cat saw the end of its input');
   await assert.rejects(run('/bin/sleep', ['5'], { timeoutMs: 100 }));
   await assert.rejects(run('/definitely/not/here', []));
 });

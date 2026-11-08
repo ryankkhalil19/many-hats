@@ -70,6 +70,13 @@ export function notices(list: readonly Notice[]): string {
     .join('')}</div>`;
 }
 
+/** The ui.collapsed key that minimizes an account's card. */
+export const cardKey = (account: string): string => `card:${account}`;
+
+/**
+ * An account's card: who it is, its usage windows, and what to do with it. Minimized, it keeps
+ * its head and one line of usage; its menu still has everything the hidden buttons do.
+ */
 export function card(
   ui: UiState,
   a: AccountView,
@@ -78,6 +85,21 @@ export function card(
 ): string {
   const label = labelOf(a);
   const meta = [a.name, a.plan, a.openHere ? `${a.openHere} open here` : null].filter(Boolean).join(' · ');
+  const n = esc(a.name);
+  const minimized = Boolean(ui.collapsed[cardKey(a.name)]);
+  const head = `<div class="card-head">
+        <span class="avatar" data-hue="${hue(names, a.name)}" aria-hidden="true">${esc(avatarLetter(a))}</span>
+        <div class="who"><div class="email" title="${esc(label)}">${esc(label)}</div><div class="meta" title="${esc([meta, a.tier].filter(Boolean).join(' · '))}">${esc(meta)}</div></div>
+        <button class="icon-btn card-toggle" data-act="toggle" data-toggle="${esc(cardKey(a.name))}" data-key="card-toggle:${n}"
+          aria-expanded="${!minimized}" title="${minimized ? 'Maximize' : 'Minimize'}" aria-label="${minimized ? 'Maximize' : 'Minimize'} ${esc(label)}">${minimized ? I.maximize : I.minimize}</button>
+        <button class="icon-btn" data-act="accountMenu" data-account="${n}" title="Account actions" aria-label="Actions for ${esc(label)}" aria-haspopup="menu">${I.more}</button>
+      </div>`;
+  const classes = `card${a.isPick ? ' is-pick' : ''}${a.signedIn ? '' : ' signed-out'}`;
+  if (minimized)
+    return `<div class="${classes} minimized" data-account="${n}" data-key="account:${n}">
+      ${head}
+      ${miniUsage(ui, a, now)}
+    </div>`;
   const rows: string[] = [];
   const shows: string[] = []; // the ▾ buttons of the limits hidden on this account
   for (const l of a.usage?.limits ?? []) {
@@ -88,7 +110,6 @@ export function card(
     ? rows.join('')
     : `<div class="note">${a.usageRefreshing ? 'Getting this account’s usage…' : 'No usage figures yet.'}</div>`;
   const foot = usageFoot(a, now, shows);
-  const n = esc(a.name);
   const body = a.signedIn
     ? `<div class="limits">${limits}${foot}</div>`
     : `<div class="note">Not signed in${a.expectedEmail ? `: sign in as ${esc(a.expectedEmail)}` : ''}.</div>`;
@@ -100,16 +121,45 @@ export function card(
              : `<button class="btn ghost" data-act="pick" data-account="${n}" title="Make new Claude Code tabs in this window start on this account">Use for new tabs</button>`
          }`
     : `<button class="btn primary" data-act="signIn" data-account="${n}">${I.key}<span>Sign in</span></button>`;
-  return `<div class="card${a.isPick ? ' is-pick' : ''}${a.signedIn ? '' : ' signed-out'}" data-account="${n}" data-key="account:${n}">
-      <div class="card-head">
-        <span class="avatar" data-hue="${hue(names, a.name)}" aria-hidden="true">${esc(avatarLetter(a))}</span>
-        <div class="who"><div class="email" title="${esc(label)}">${esc(label)}</div><div class="meta" title="${esc([meta, a.tier].filter(Boolean).join(' · '))}">${esc(meta)}</div></div>
-        <button class="icon-btn" data-act="accountMenu" data-account="${n}" title="Account actions" aria-label="Actions for ${esc(label)}" aria-haspopup="menu">${I.more}</button>
-      </div>
+  return `<div class="${classes}" data-account="${n}" data-key="account:${n}">
+      ${head}
       ${body}
       ${a.usage?.credits ? `<div class="sub">Usage credits: ${esc(a.usage.credits.used)} used</div>` : ''}
       <div class="card-foot">${actions}</div>
     </div>`;
+}
+
+/** "Session (5hr)" → "Session", "Fable limit" → "Fable": short enough for one line. */
+export function shortLimitLabel(label: string): string {
+  return label.replace(/\s*\([^)]*\)\s*$/, '').replace(/\s+limit$/i, '') || label;
+}
+
+/**
+ * A minimized card's one line: each usage window it shows, as a short name and percentage in its
+ * level's color (a per-model limit hidden on the account stays hidden), or why there are none. As
+ * on the full card, it says when the figures are updating, couldn't be refreshed, or are old.
+ */
+function miniUsage(ui: UiState, a: AccountView, now: number): string {
+  if (!a.signedIn) return '<div class="mini-usage note">Not signed in</div>';
+  const limits = (a.usage?.limits ?? []).filter(
+    (l) => !(l.kind === 'weekly_scoped' && ui.hiddenLimits[`${a.name}:${l.label}`]),
+  );
+  if (!limits.length)
+    return `<div class="mini-usage note">${a.usageRefreshing ? 'Getting this account’s usage…' : 'No usage figures yet'}</div>`;
+  const fetched = a.usage?.fetchedAtMs;
+  const state = a.usageRefreshing
+    ? '<span class="mini-state updated" role="status">Updating…</span>'
+    : a.usageError
+      ? `<span class="mini-state usage-error" title="${esc(a.usageError)}">Couldn’t refresh</span>`
+      : fetched !== undefined && now - fetched > STALE_USAGE_MS
+        ? `<span class="mini-state updated stale" title="When Claude Code last fetched this account’s usage">${esc(agoLong(fetched, now))}</span>`
+        : '';
+  return `<div class="mini-usage">${limits
+    .map(
+      (l) =>
+        `<span class="mini level-${l.level}${l.active ? ' active' : ''}" title="${esc(l.label)}: ${l.percent}%${l.active ? ', the limit currently in effect' : ''}">${esc(shortLimitLabel(l.label))} <span class="pct">${l.percent}%</span></span>`,
+    )
+    .join('<span class="mini-sep" aria-hidden="true">·</span>')}${state}</div>`;
 }
 
 /** Figures this old are past what Claude Code itself still trusts, so they're marked. */

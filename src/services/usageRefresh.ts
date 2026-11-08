@@ -13,10 +13,13 @@
  * - refresh(account): now, for a click.
  * - A lock file per account, shared by every window, so two windows never refresh the same one.
  * - After a failure, automatic refreshes of that account wait 15 minutes; a click still tries.
+ * - Claude Code saves the figures a few seconds in, then goes on to its "What's contributing to
+ *   your usage?" analysis, which reads every session saved on the machine and can take over a
+ *   minute. Many Hats never reads that, so it stops Claude Code as soon as the figures are saved.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { cliEnv } from '../claude/cli';
+import { cliEnv, QUIET_ENV } from '../claude/cli';
 import { usageFromConfig } from '../claude/profile';
 import { errnoCode, errorText } from '../core/errors';
 import { DEFAULT_ACCOUNT, extraOrUndefined, isAccountName } from '../core/ids';
@@ -25,17 +28,18 @@ import type { Logger } from '../infra/log';
 import type { AccountStore } from '../state/accounts';
 import type { Layout } from '../state/layout';
 
-/** Claude Code's own /usage, run without a prompt: no session saved, and the user's hooks off. */
+/**
+ * Claude Code's own /usage, run without a prompt: no session saved, and the user's hooks and MCP
+ * servers off.
+ */
 export const USAGE_ARGS = [
   '-p',
   '/usage',
   '--no-session-persistence',
+  '--strict-mcp-config',
   '--settings',
   '{"disableAllHooks":true}',
 ] as const;
-
-/** A background run shouldn't update Claude Code or send its analytics. */
-const QUIET_ENV = { DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1' };
 
 export interface UsageRefreshDeps {
   layout: Layout;
@@ -47,6 +51,8 @@ export interface UsageRefreshDeps {
   /** Called when an account starts or finishes refreshing, so the sidebar can show it. */
   onChange: () => void;
   now?: () => number;
+  /** How often a run's saved figures are checked; for tests. */
+  watchMs?: number;
 }
 
 export type RefreshOutcome = 'refreshed' | 'failed' | 'busy' | 'skipped';
@@ -61,6 +67,10 @@ export class UsageRefresher {
   static readonly LOCK_STALE_MS = 3 * 60_000;
   /** Claude Code answers from figures this fresh without asking again (it uses 60 s). */
   private static readonly ANSWERED_FROM_CACHE_MS = 2 * 60_000;
+  /** Figures this fresh are what Claude Code would answer with, so nothing is run. */
+  static readonly FRESH_MS = 60_000;
+  /** How often a run's saved figures are checked, to stop it once they're in. */
+  static readonly WATCH_MS = 500;
 
   private readonly active = new Set<string>();
   private readonly failures = new Map<string, { at: number; why: string }>();
@@ -114,6 +124,12 @@ export class UsageRefresher {
   async refresh(account: string): Promise<RefreshOutcome> {
     if (!isAccountName(account) || !this.signedIn(account)) return 'skipped';
     if (this.active.has(account)) return 'busy';
+    const saved = this.fetchedAt(account);
+    if (saved !== undefined && this.now() - saved < UsageRefresher.FRESH_MS) {
+      this.failures.delete(account);
+      this.deps.onChange();
+      return 'refreshed';
+    }
     let lock: { release(): void } | undefined;
     try {
       lock = this.lock(account);
@@ -128,11 +144,24 @@ export class UsageRefresher {
       const binary = this.deps.claudeBinary();
       if (!binary) throw new RefreshError('Claude Code’s CLI wasn’t found.');
       const configDir = this.deps.store.configDirOf(extraOrUndefined(account));
-      await this.deps.run(binary, USAGE_ARGS, {
-        env: { ...cliEnv(this.deps.env, configDir), ...QUIET_ENV },
-        cwd: this.deps.layout.root,
-        timeoutMs: UsageRefresher.TIMEOUT_MS,
-      });
+      // Stopped once new figures are saved: the rest of the run is an analysis Many Hats never reads.
+      const stop = new AbortController();
+      const watch = setInterval(() => {
+        const at = this.fetchedAt(account);
+        if (at !== undefined && at !== before) stop.abort();
+      }, this.deps.watchMs ?? UsageRefresher.WATCH_MS);
+      try {
+        await this.deps.run(binary, USAGE_ARGS, {
+          env: { ...cliEnv(this.deps.env, configDir), ...QUIET_ENV },
+          cwd: this.deps.layout.root,
+          timeoutMs: UsageRefresher.TIMEOUT_MS,
+          signal: stop.signal,
+        });
+      } catch (e) {
+        if (!stop.signal.aborted) throw e;
+      } finally {
+        clearInterval(watch);
+      }
       const after = this.fetchedAt(account);
       const fresh =
         after !== undefined &&
@@ -153,7 +182,15 @@ export class UsageRefresher {
   private failed(account: string, e: unknown): RefreshOutcome {
     const why = reason(e);
     this.failures.set(account, { at: this.now(), why });
-    this.deps.log.warn(`couldn't refresh the usage of ${account}: ${errorText(e)}`);
+    const err = e as { killed?: boolean; signal?: unknown; code?: unknown };
+    const how = [
+      typeof err.code === 'number' ? `exit code ${err.code}` : undefined,
+      typeof err.signal === 'string' ? `signal ${err.signal}` : undefined,
+      err.killed ? `stopped after ${UsageRefresher.TIMEOUT_MS / 1000} s` : undefined,
+    ].filter(Boolean);
+    this.deps.log.warn(
+      `couldn't refresh the usage of ${account}${how.length ? ` (${how.join(', ')})` : ''}: ${errorText(e)}`,
+    );
     return 'failed';
   }
 

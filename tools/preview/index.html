@@ -356,9 +356,19 @@
             if (m.type === 'open' && s) {
               s.running = s.running || { status: 'idle', here: true };
               s.updatedAt = Date.now();
-              if (m.account && m.account !== s.account) s.account = m.account;
-              s.movingTo = null;
             }
+            if (m.type === 'copy' && s)
+              // Like the real extension once it's named: a new session on that account, opened there.
+              state.sessions.unshift({
+                id: crypto.randomUUID(),
+                title: `${s.title} (copy)`,
+                updatedAt: Date.now(),
+                account: m.account,
+                running: { status: 'idle', here: true },
+                movingTo: null,
+                archived: false,
+                folder: s.folder,
+              });
             send();
           }, 60);
         },

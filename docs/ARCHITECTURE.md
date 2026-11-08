@@ -36,7 +36,7 @@ uninstall/        the uninstall hook (plain Node)
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | `accounts/<name>/`                | An extra account's `CLAUDE_CONFIG_DIR`. Shared entries of `~/.claude` are symlinked in; `.claude.json` (identity) and caches stay per login. | `AccountStore`, `ConfigSync`        |
 | `accounts/<name>/.many-hats.json` | The email the account should sign in as.                                                                                                     | `AccountStore`                      |
-| `assignments/<session id>`        | `<account> <source> <ISO time>`: the account a session belongs to.                                                                           | `Assignments`; read by the launcher |
+| `assignments/<session id>`        | `<account> <source> <ISO time>`: the account a session belongs to. Source: `observed`, `moved` or `copied`.                                  | `Assignments`; read by the launcher |
 | `picks/<sha256(key)>.json`        | The account new tabs start on, per window.                                                                                                   | `Picks`                             |
 | `next/<extension host pid>`       | A one-shot account for the next tab a window opens.                                                                                          | `NextTab`; claimed by the launcher  |
 | `archive/<session id>`            | The sidebar's archive.                                                                                                                       | `Archive`                           |
@@ -49,7 +49,7 @@ uninstall/        the uninstall hook (plain Node)
 ### Invariants
 
 1. **One record per key, replaced atomically.** Every write goes temp file → `fsync` → `rename`. Readers see the old or the new record, never half of one. Several windows and every Claude start read these at once, and there's nothing to lock.
-2. **A session's account is sticky.** It's set the first time the session is seen running on one of the accounts once it has been saved (Claude Code saves a session with its first message, so a tab that's never used is never recorded). Afterwards only Move or "Open on account" change it. Seeing it run elsewhere never flips it.
+2. **A session's account is sticky.** It's set the first time the session is seen running on one of the accounts once it has been saved (Claude Code saves a session with its first message, so a tab that's never used is never recorded). Afterwards only Move changes it. A copy gets its account when it's made. Seeing a session run elsewhere never flips it.
 3. **Nothing reads a token.** Logins stay in each config folder's Keychain entry, owned by Claude Code. Sign-in and sign-out run `claude auth login`/`logout`.
 4. **Untrusted input is checked at the edge.** Session ids must be UUIDs and account names match `^[a-z0-9][a-z0-9_-]{0,31}$` before they're used in a path. This applies to:
    - webview messages (`shared/protocol.ts`);
@@ -81,7 +81,8 @@ Every failure path falls through to step 4: an unreadable record, a missing fold
 | `.claude.json` `oauthAccount.emailAddress`                | Who an account is                           | `Compat('identity')`                    |
 | `.claude.json` `cachedUsageUtilization`                   | Usage windows                               | `Compat('usage')`                       |
 | `claude -p /usage` runs without a prompt and saves usage  | Refreshing an account's usage               | nightly canary                          |
-| `--settings '{"disableAllHooks":true}'` turns hooks off   | A refresh never runs the user's hooks       | nightly canary                          |
+| `--resume <id> --fork-session --session-id <new>` copies  | Copy to account                             | nightly canary                          |
+| `--settings '{"disableAllHooks":true}'` turns hooks off   | Background runs never run the user's hooks  | nightly canary                          |
 | Transcript lines `{"type": …}`                            | Session titles                              | `Compat('transcripts')`                 |
 | Tabs carry `MANY_HATS_LAUNCHER=1` once the wrapper is set | The wrapper is still honoured               | `Compat('processWrapper')`              |
 | One Keychain entry per config folder                      | Separate logins                             | design; unchanged since Claude Code 1.x |
@@ -113,14 +114,52 @@ Claude Code saves an account's usage (`cachedUsageUtilization` in its `.claude.j
 `services/usageRefresh.ts` asks the way a person would, by running Claude Code's own `/usage` for the account. It runs `claude -p /usage` with that account's `CLAUDE_CONFIG_DIR`:
 
 - **No inherited login:** any login variable inherited from elsewhere is removed.
-- **Nothing extra:** no session is saved (`--no-session-persistence`), the user's hooks stay off (`disableAllHooks`), and there's no self-update and no telemetry.
+- **Nothing extra:** no session is saved (`--no-session-persistence`), the user's hooks and MCP servers stay off (`disableAllHooks`, `--strict-mcp-config`), and there's no self-update and no telemetry.
 - **One working folder:** it always runs from `~/.many-hats`.
 
 Claude Code fetches the figures with that account's own login and saves them, and the sidebar reads them as before. Many Hats itself never touches a login or the network.
 
+- **Stopped once the figures are in:** Claude Code 2.1.3xx saves the figures about 4 seconds in, then works on "What's contributing to your usage?". That analysis reads every session saved on the machine, and took 64–71 s with 4.4 GB of history. Many Hats never reads it, so it checks the saved figures every 0.5 s and stops Claude Code (SIGTERM) once new ones are in. Three accounts refreshed at once took 4.1 s each, and their config files stayed intact. The 90 s limit is only a backstop.
+- **Already fresh:** figures under a minute old are what Claude Code would answer with, so a click doesn't run anything.
+
 - **When:** every 5 s while the sidebar shows, `tick()` refreshes the first signed-in account whose figures are over 15 minutes old, one at a time. The ↻ on a card and **Refresh Sessions and Usage** refresh right away.
 - **Across windows:** a lock file per account (`locks/usage-<name>`, created only if absent) means one window refreshes it and every window reads the result. A lock older than 3 minutes was left by a window that went away.
 - **Failures:** the card says "Couldn't refresh", with the reason on hover, and automatic refreshes of that account wait 15 minutes. The log has the details.
+
+## Copying a session
+
+Copy to account (`SessionService.copySession`, `claude/fork.ts`) has Claude Code make the copy with its own fork, run on the account the copy is for:
+
+```
+claude -p "/rename <name>" --resume <transcript file> --fork-session --session-id <new id> --strict-mcp-config --settings '{"disableAllHooks":true}'
+```
+
+- **What it reads:** the original's transcript file, the one the sidebar lists, so there's no lookup. A session ID can be in more than one project folder.
+- **How it runs:** with the target account's `CLAUDE_CONFIG_DIR`, no inherited login, no self-update and no telemetry, as the usage refresh does.
+- **Where:** in the session's folder. Claude Code writes the copy in that folder's project folder, which it finds from the folder's real path. For a folder opened through a symlink (or an account whose shared projects folder isn't linked), that's a different project folder, and Many Hats moves the copy next to the original.
+- **What Claude Code does:**
+  - The copy gets the new ID on every record.
+  - It copies the conversation as the model sees it: from the last compaction (its boundary and summary) on. A 256 MB conversation with 16 compactions made a 7 MB copy in about 1.4 seconds, peaking at about 340 MB of memory.
+  - It keeps what belongs to the conversation and drops what belongs to the original session: its Remote Control link and folder moves.
+  - It records the account that ran the fork as the copy's owner.
+  - `/rename` names the copy. It's a local command, so no turn runs and nothing is sent to the model.
+  - The run needs no login.
+  - The original is only read, even while a tab has it open: the process holding it keeps running.
+- **What Many Hats does:**
+  - It assigns the copy to the account (`copied`) before Claude Code makes it. While the fork runs, its process looks like one of the window's tabs, and the copy would otherwise be recorded as first seen there.
+  - It checks both ends of the copy: only the new ID, none of the original's.
+  - It names the copy itself if `/rename` didn't.
+  - If anything fails, the copy's files go to the Trash and its assignment goes.
+  - Copies run one at a time, since each one reads a whole conversation.
+- **Why Claude Code's fork:** only Claude Code knows which of its records belong to a conversation and which to a session (Remote Control, ownership, safety state), and that changes between versions. Copying files by hand would duplicate session state or drop safety state, and break silently.
+- **What the canary checks:** every night it copies a conversation with the latest CLI, signed out. It checks:
+  - the copy is written, carries only its own ID and gets its name;
+  - it leaves the Remote Control link and the folder move behind;
+  - no turn runs, hooks stay off, and the original is untouched.
+
+  The owner stamp needs a signed-in account, so it's checked by hand.
+
+- **What the copy shares:** files the original saved (long tool outputs) stay in the original's folders, and the copy's history points there, as with a branch made in Claude Code. It starts with its own scratchpad, and without the original's background tasks, scheduled jobs or file checkpoints.
 
 ## The sidebar
 
@@ -143,6 +182,8 @@ Each state replaces the sidebar's markup, so a state never lands in the middle o
 
 - **While the user is busy, a new state waits.** That covers renaming, an open menu, and a mouse button that's down: replacing the button being clicked would drop the click. The waiting state is shown when they finish.
 - **A rename shows at once,** and stays over any state the extension built before it handled the rename, until a state has the new title (or 10 seconds pass).
+
+The UI's own choices are kept in the webview's saved state, per window: collapsed sections and groups, minimized account cards (`card:<account>`), hidden per-model limits, the filter and the search.
 
 **Tests:** the pure parts (`view.ts`, `menuItems.ts`, `renames.ts`, `format.ts`) have unit tests. `test/webview/` drives the whole sidebar in headless Chrome against `tools/preview`, whose stand-in extension answers like the real one. Both of the races above have a test that reproduces them on demand.
 

@@ -23,6 +23,8 @@ import type { AccountView, Notice, SessionView, SidebarState } from '../../share
 export interface KnownSession {
   file: string;
   projectFolder: string;
+  /** The window's folder it's listed under: where it runs. */
+  folder: string;
   title: string;
   running: boolean;
 }
@@ -101,7 +103,7 @@ export async function buildSidebarState(
         archived: archived.has(s.id),
         folder: path.basename(folder),
       });
-      known.set(s.id, { file: s.file, projectFolder: dir, title: s.title, running: Boolean(run) });
+      known.set(s.id, { file: s.file, projectFolder: dir, folder, title: s.title, running: Boolean(run) });
       if (here && account) {
         const a = accounts.find((x) => x.name === account);
         if (a) a.openHere++;
