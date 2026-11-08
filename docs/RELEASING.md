@@ -6,7 +6,7 @@ Releases are built once by CI and published from that build to three places:
 - the VS Code Marketplace (VS Code);
 - Open VSX (Cursor, Windsurf, VSCodium and other editors).
 
-Publishing uses Trusted Publishing from GitHub Actions, so no store token is stored anywhere. Each release waits for the maintainer to approve it in GitHub.
+Publishing uses Trusted Publishing from GitHub Actions, so no store token is stored anywhere. A release publishes as soon as its version tag is pushed: the `release` environment deploys only from `v*` tags, and needs no approval (removed 2026-11-08). To bring the approval step back, add yourself as a required reviewer of the `release` environment (Settings → Environments → release).
 
 ## Versions
 
@@ -50,14 +50,14 @@ Until a store's variable is `true`, releases go to GitHub Releases only.
    git tag v0.9.1
    git push origin main v0.9.1
    ```
-5. **Approve.** The **Release** workflow builds and tests, packages one `.vsix` per Mac target, and records checksums and build provenance. It then waits for approval of the `release` environment. Approve it in the Actions tab. It then:
+5. **Watch it publish.** The **Release** workflow builds and tests, packages one `.vsix` per Mac target, and records checksums and build provenance. Its `release` environment then:
    - creates the GitHub Release with the packages;
    - publishes them to each store, one package at a time (`scripts/publish-store.mjs`). A store's step passes only once that store serves every package. A package still missing halfway through the 15-minute wait is published once more.
 6. **Check the listings.** Install from each store in a fresh editor profile.
 
 ## If a store step fails
 
-The step names the package that never appeared. Re-run the publish job from the Actions tab and approve it again: packages already in a store are skipped, and the GitHub Release is updated in place. If it fails again, upload that package in the store's own page (the Marketplace's publisher page, or Open VSX's Publish page).
+The step names the package that never appeared. Re-run the publish job from the Actions tab: packages already in a store are skipped, and the GitHub Release is updated in place. If it fails again, upload that package in the store's own page (the Marketplace's publisher page, or Open VSX's Publish page).
 
 ## If a release is bad
 

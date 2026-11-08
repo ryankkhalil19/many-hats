@@ -1,8 +1,8 @@
 name: Release
 
 # On a version tag: build and test once, package one .vsix per Mac target, record checksums and
-# build provenance, then (after the maintainer approves the "release" environment) publish the same
-# files to the VS Code Marketplace and Open VSX with Trusted Publishing, and to GitHub Releases.
+# build provenance, then, in the "release" environment (v* tags only), publish the same files
+# to the VS Code Marketplace and Open VSX with Trusted Publishing, and to GitHub Releases.
 # See docs/RELEASING.md.
 on:
   push:
