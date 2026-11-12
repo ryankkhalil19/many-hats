@@ -4,6 +4,12 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-12
+
+### Changed
+
+- **Many Hats is out of preview.** 1.0.0 is a full release in both the VS Code Marketplace and Open VSX, no longer a pre-release or marked "Preview". Nothing else changed since 0.9.2.
+
 ## [0.9.2] - 2026-11-08
 
 ### Added
@@ -54,7 +60,8 @@ First public pre-release.
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 
-[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.2...v1.0.0
 [0.9.2]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ryankkhalil19/many-hats/releases/tag/v0.9.1
 [0.9.0]: https://github.com/ryankkhalil19/many-hats/releases/tag/v0.9.0

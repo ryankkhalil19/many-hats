@@ -42,13 +42,13 @@ Until a store's variable is `true`, releases go to GitHub Releases only.
 ## Cutting a release
 
 1. **Update `CHANGELOG.md`.** Move "Unreleased" under the new version and date.
-2. **Set the version** in `package.json`. `"preview": true` stays while the major version is 0.
+2. **Set the version** in `package.json`. `"preview"` is `false` from 1.0.0 on (it was `true` through 0.9.x).
 3. **Check:** `npm run check`, `npm run test:webview`, `npm run test:integration`, then `npm run test:e2e` locally.
 4. **Commit and tag:**
    ```bash
-   git commit -am "Release 0.9.1"
-   git tag v0.9.1
-   git push origin main v0.9.1
+   git commit -am "Release 1.0.1"
+   git tag v1.0.1
+   git push origin main v1.0.1
    ```
 5. **Watch it publish.** The **Release** workflow builds and tests, packages one `.vsix` per Mac target, and records checksums and build provenance. Its `release` environment then:
    - creates the GitHub Release with the packages;
