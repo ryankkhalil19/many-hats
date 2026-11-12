@@ -192,7 +192,7 @@
             plan: 'Pro',
             signedIn: true,
             isPick: true,
-            openHere: 2,
+            openHere: 1,
             usage: {
               fetchedAtMs: now - 2 * min,
               limits: [
@@ -252,7 +252,7 @@
             title: 'Draft release notes',
             updatedAt: now - 12 * min,
             account: 'default',
-            running: { status: 'idle', here: true },
+            running: null,
             movingTo: null,
             archived: false,
             folder: 'shop-api',
@@ -282,7 +282,7 @@
             title: 'Weekly report script',
             updatedAt: now - 2 * day,
             account: 'default',
-            running: null,
+            running: { status: 'idle', here: false }, // open in another window: it moves when it next starts
             movingTo: 'work',
             archived: false,
             folder: 'shop-api',
@@ -325,7 +325,15 @@
             if (m.type === 'rename' && s) s.title = m.title;
             if (m.type === 'archive' && s) s.archived = m.archived;
             if (m.type === 'delete' && s && !s.running) state.sessions.splice(state.sessions.indexOf(s), 1);
-            if (m.type === 'move' && s) s.movingTo = m.account === s.account ? null : m.account;
+            // Like the extension: a closed session is on its new account at once; an open one keeps
+            // running where it is and moves when it next starts.
+            if (m.type === 'move' && s) {
+              if (s.running) s.movingTo = m.account === s.account ? null : m.account;
+              else {
+                s.account = m.account;
+                s.movingTo = null;
+              }
+            }
             if (m.type === 'refreshUsage') {
               // Like the real extension: the card shows it updating, then the fresh figures.
               const a = state.accounts.find((x) => x.name === m.account);

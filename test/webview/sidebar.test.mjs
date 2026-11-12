@@ -96,6 +96,8 @@ test(
     await page.click(`${row(3)} .title`);
     assert.deepEqual(await posted(), [{ type: 'open', id: id(3) }]);
     assert.ok(await page.eval(`document.querySelector(${json(row(3))}).classList.contains('selected')`));
+    // Opening it starts it: it shows as open in this window.
+    await page.until(`document.querySelector(${json(row(3))} + ' .dot:not(.none)')`);
 
     await openSessionMenu(3);
     assert.deepEqual(await menuLabels(), [
@@ -113,6 +115,7 @@ test(
       'you@client.example',
       'Delete (close it first) [off]',
     ]);
+    // The click opened it: an open session keeps running where it is, and moves when it next starts.
     await forget();
     await page.click(await menuItem('you@work.example', 'Move to account'));
     assert.deepEqual(await posted(), [{ type: 'move', id: id(3), account: 'work' }]);
@@ -120,6 +123,21 @@ test(
     await page.until(
       `document.querySelector(${json(row(3))}).querySelector('.chip')?.textContent === '→ work'`,
     );
+    const groupOf = (n) =>
+      page.eval(
+        `document.querySelector(${json(row(n))})?.closest('.group')?.querySelector('.group-title')?.textContent`,
+      );
+    assert.equal(await groupOf(3), 'you@example.com', 'it stays in its group until then');
+
+    // A closed session is on its new account at once: it moves to that account's group.
+    await openSessionMenu(4);
+    await forget();
+    await page.click(await menuItem('you@example.com', 'Move to account'));
+    assert.deepEqual(await posted(), [{ type: 'move', id: id(4), account: 'default' }]);
+    await page.until(
+      `document.querySelector(${json(row(4))})?.closest('.group')?.querySelector('.group-title')?.textContent === 'you@example.com'`,
+    );
+    assert.equal(await page.eval(`document.querySelector(${json(row(4))}).querySelector('.chip')`), null);
 
     await openSessionMenu(4);
     await forget();
@@ -261,7 +279,7 @@ test(
     await page.click('[data-filter="archived"]');
     assert.deepEqual(await rowIds(), [id(8)]);
     await page.click('[data-filter="open"]');
-    assert.deepEqual(await rowIds(), [1, 3, 2, 5].map(id));
+    assert.deepEqual(await rowIds(), [1, 6, 2, 5].map(id));
     await page.click('[data-filter="all"]');
     assert.equal((await rowIds()).length, 7);
   },
