@@ -55,7 +55,7 @@ uninstall/        the uninstall hook (plain Node)
    - webview messages (`shared/protocol.ts`);
    - records on disk;
    - launcher arguments.
-5. **Claude Code's files are read, never trusted.** Readers in `claude/` check every record's shape and report to `Compat`. When a feature keeps finding records it can't read, it's paused and nothing acts on it (below).
+5. **Claude Code's files are read, never trusted.** Readers in `claude/` check every record's shape and report to `Compat`. When a feature keeps finding records it can't read, it's paused and nothing acts on it (below). The one thing Many Hats writes in them is a folder's trust record, under Claude Code's own lock ([Folder trust](#folder-trust)).
 
 ## The launcher contract
 
@@ -83,6 +83,9 @@ Every failure path falls through to step 4: an unreadable record, a missing fold
 | `claude -p /usage` runs without a prompt and saves usage  | Refreshing an account's usage               | nightly canary                          |
 | `--resume <id> --fork-session --session-id <new>` copies  | Copy to account                             | nightly canary                          |
 | `--settings '{"disableAllHooks":true}'` turns hooks off   | Background runs never run the user's hooks  | nightly canary                          |
+| `claude workspace-trust --json` reports a folder's trust  | The extension's "Trust this folder?" check  | nightly canary                          |
+| `.claude.json` `projects[folder].hasTrustDialogAccepted`  | Sharing folder trust between accounts       | nightly canary                          |
+| Claude Code saves `.claude.json` under `<file>.lock`      | Writing trust records safely                | nightly canary (warns only)             |
 | Transcript lines `{"type": …}`                            | Session titles                              | `Compat('transcripts')`                 |
 | Tabs carry `MANY_HATS_LAUNCHER=1` once the wrapper is set | The wrapper is still honoured               | `Compat('processWrapper')`              |
 | One Keychain entry per config folder                      | Separate logins                             | design; unchanged since Claude Code 1.x |
@@ -101,6 +104,18 @@ Each reader reports how many records it understood (`ok`) and how many it found 
   - the scanner stops adopting assignments from data it can't read;
   - diagnostics list the issue.
 - **Recover:** one good pass clears it.
+
+## Folder trust
+
+Before a window's sessions start, Claude Code's extension runs `claude workspace-trust --json` in the folder. Through the launcher, that runs on the account for new tabs. When it says untrusted, the extension asks "Trust this folder in Claude Code?" and hands the answer to the session it starts next, which records it in the `.claude.json` of the account that session runs on. With a session that belongs to another account, the account that was asked never gets the record, and the question comes back on every reload.
+
+`services/trustSync.ts` makes a folder trusted on any account trusted on all of them. It runs when the window opens, before Claude Code asks, then every minute:
+
+- **It only spreads trust.** It never untrusts a folder, and never touches one no account trusts. A folder is untrusted by removing its record from every account.
+- **It writes as Claude Code does** (`claude/trust.ts`). It takes Claude Code's own lock (`<real file>.lock`, a proper-lockfile folder), re-reads the file inside it, sets `hasTrustDialogAccepted` (a new entry gets Claude Code's defaults for one), and replaces the file in one rename, keeping its mode and formatting. A lock Claude Code holds is never broken: it tries again 2 s later.
+- **It leaves alone** a config it can't read or whose `projects` it doesn't understand.
+
+Claude Code itself suggests this fix: its messages say to set `projects[<folder>].hasTrustDialogAccepted` to true in the config file. Racing a real Claude Code saving the same file lost neither side's change in five tries. The nightly canary checks that a record written this way counts, survives Claude Code's next save, and that Claude Code takes the lock.
 
 ## Processes and scanning
 

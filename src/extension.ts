@@ -26,6 +26,7 @@ import { ConfigSync } from './services/configSync';
 import { checkHealth, repairAll, type HealthCheck } from './services/health';
 import { installLauncher } from './services/launcher';
 import { housekeeping } from './services/maintenance';
+import { TrustSync } from './services/trustSync';
 import { PickService } from './services/pick';
 import { Scanner } from './services/scanner';
 import { SessionService } from './services/sessions';
@@ -211,6 +212,11 @@ function start(context: vscode.ExtensionContext, log: Logger, started: number): 
     { dispose: () => scanner.dispose() },
     { dispose: () => accounts.dispose() },
   );
+
+  // Before Claude Code asks whether this folder is trusted, on the account for new tabs.
+  const trust = new TrustSync({ store, log });
+  trust.start();
+  context.subscriptions.push({ dispose: () => trust.dispose() });
 
   if (pick.missing) {
     log.warn(`account "${pick.missing}" no longer exists; new tabs start on default`);

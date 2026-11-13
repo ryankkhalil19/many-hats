@@ -4,7 +4,17 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { check, checkCli, checkCopy, checkUsage, copyArgs, USAGE_ARGS } from '../../scripts/canary.mjs';
+import {
+  check,
+  checkCli,
+  checkCopy,
+  checkTrust,
+  checkUsage,
+  copyArgs,
+  PROJECT_DEFAULTS,
+  USAGE_ARGS,
+} from '../../scripts/canary.mjs';
+import { PROJECT_DEFAULTS as EXTENSION_PROJECT_DEFAULTS } from '../../src/claude/trust.ts';
 import { forkArgs } from '../../src/claude/fork.ts';
 import { USAGE_ARGS as EXTENSION_USAGE_ARGS } from '../../src/services/usageRefresh.ts';
 
@@ -123,5 +133,41 @@ test('canary: a copy is checked as the extension makes it, and each way it can g
   assert.ok(
     unnamed.every((r) => r.ok || !r.hard),
     'an unnamed copy only warns: Many Hats names it',
+  );
+});
+
+test('canary: shared folder trust is checked as Many Hats writes it, and each way it can break is caught', () => {
+  assert.deepEqual(
+    PROJECT_DEFAULTS,
+    { ...EXTENSION_PROJECT_DEFAULTS },
+    'the canary writes the entry the extension writes',
+  );
+  const work = '/tmp/canary/work';
+  const ok = {
+    work,
+    before: { trusted: false, directory: work },
+    after: { trusted: true, directory: work },
+    sawLock: true,
+    kept: true,
+    savedByCli: true,
+  };
+  assert.deepEqual(failing(checkTrust(ok)), []);
+  assert.deepEqual(failing(checkTrust({ ...ok, before: null })), [
+    'the CLI reports a folder’s trust with workspace-trust --json',
+  ]);
+  assert.deepEqual(failing(checkTrust({ ...ok, after: { trusted: false, directory: work } })), [
+    'a trust record written as Many Hats writes it counts',
+  ]);
+  assert.deepEqual(failing(checkTrust({ ...ok, kept: false })), [
+    'saving its config keeps a trust record Many Hats wrote',
+  ]);
+  assert.deepEqual(failing(checkTrust({ ...ok, savedByCli: false })), [
+    'saving its config keeps a trust record Many Hats wrote',
+  ]);
+  const unseen = checkTrust({ ...ok, sawLock: false });
+  assert.deepEqual(failing(unseen), ['the CLI locks its config with <file>.lock while saving']);
+  assert.ok(
+    unseen.every((r) => r.ok || !r.hard),
+    'an unseen lock only warns',
   );
 });

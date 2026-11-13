@@ -49,6 +49,7 @@ Your existing Claude Code login is the **default** account. To make new tabs in 
 - **New tabs.** Many Hats sets the account for new tabs in the window's environment, which Claude Code uses when it starts a tab.
 - **A small launcher.** Claude Code starts every tab through it (its `claudeCode.claudeProcessWrapper` setting). The launcher starts a resumed session on the account it belongs to.
 - **Moving a session.** Moving changes the account its tab starts on next time. A tab that's open keeps running where it is until it restarts.
+- **Folder trust.** Claude Code keeps its "Trust this folder?" answers per account, so with several accounts it could ask again on every reload. A folder you've trusted on any account is trusted on all of them. Many Hats never trusts a folder you haven't trusted, and never untrusts one: to stop trusting a folder, remove it from every account's `.claude.json`.
 - **Copying a session.** Claude Code makes the copy with its own fork, run on the account you pick. The copy is a session of its own next to the original, with a new ID, the name you give it, and that account as its owner.
 
 The details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

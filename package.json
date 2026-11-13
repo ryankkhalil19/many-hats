@@ -2,7 +2,7 @@
   "name": "many-hats",
   "displayName": "Many Hats for Claude Code",
   "description": "Run each Claude Code tab on its own Claude account, side by side in one window, with every account's usage and sessions at a glance. macOS.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "preview": false,
   "publisher": "ryankkhalil19",
   "author": "ryankkhalil19",

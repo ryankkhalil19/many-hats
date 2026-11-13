@@ -4,7 +4,7 @@
 // update that would break Many Hats is known before users report it.
 //   node scripts/canary.mjs [--json]
 //   MANY_HATS_CANARY_CLI=~/.local/bin/claude node scripts/canary.mjs   (a local CLI, no download)
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -198,6 +198,84 @@ function usageRunOf(cli) {
   }
 }
 
+/** A new project entry's defaults: the same as PROJECT_DEFAULTS in src/claude/trust.ts. */
+export const PROJECT_DEFAULTS = {
+  allowedTools: [],
+  mcpContextUris: [],
+  mcpServers: {},
+  enabledMcpjsonServers: [],
+  disabledMcpjsonServers: [],
+  hasTrustDialogAccepted: false,
+  hasClaudeMdExternalIncludesApproved: false,
+  hasClaudeMdExternalIncludesWarningShown: false,
+};
+
+/**
+ * Folder trust, as Many Hats shares it between accounts: what the CLI reports for a folder before
+ * and after a trust record is written the way Many Hats writes it, whether a run that saves the
+ * config keeps that record, and whether it takes `<file>.lock` while it saves.
+ */
+async function trustRunOf(cli) {
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'many-hats-canary-trust-')));
+  try {
+    const config = path.join(home, 'config');
+    const work = path.join(home, 'work');
+    fs.mkdirSync(config);
+    fs.mkdirSync(work);
+    const file = path.join(config, '.claude.json');
+    fs.writeFileSync(file, '{"numStartups": 1}');
+    const env = {
+      PATH: process.env.PATH ?? '',
+      HOME: home,
+      CLAUDE_CONFIG_DIR: config,
+      DISABLE_AUTOUPDATER: '1',
+      DISABLE_TELEMETRY: '1',
+    };
+    const report = () => {
+      const r = spawnSync(cli.binary, ['--setting-sources', 'user', 'workspace-trust', '--json'], {
+        cwd: work,
+        env,
+        encoding: 'utf8',
+        timeout: 60_000,
+      });
+      try {
+        return JSON.parse((r.stdout ?? '').trim().split('\n').pop() ?? '');
+      } catch {
+        return null;
+      }
+    };
+    const before = report();
+    const seed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const projects = { ...seed.projects, [work]: { ...PROJECT_DEFAULTS, hasTrustDialogAccepted: true } };
+    fs.writeFileSync(file, JSON.stringify({ ...seed, projects }, null, 2));
+    const after = report();
+    // A run that saves the config (signed out, it still records its first start).
+    const sawLock = await new Promise((resolve) => {
+      const child = spawn(cli.binary, ['-p', 'hi', '--setting-sources', 'user'], {
+        cwd: work,
+        env,
+        stdio: 'ignore',
+      });
+      let saw = false;
+      const poll = setInterval(() => (saw ||= fs.existsSync(`${file}.lock`)), 2);
+      const stop = setTimeout(() => child.kill(), 60_000);
+      child.on('exit', () => (clearInterval(poll), clearTimeout(stop), resolve(saw)));
+      child.on('error', () => (clearInterval(poll), clearTimeout(stop), resolve(false)));
+    });
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return {
+      work,
+      before,
+      after,
+      sawLock,
+      kept: saved.projects?.[work]?.hasTrustDialogAccepted === true,
+      savedByCli: saved.numStartups !== 1 || 'firstStartTime' in saved,
+    };
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 const unzipText = (file, entry) =>
   execFileSync('unzip', ['-p', file, entry], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
@@ -325,6 +403,36 @@ export function checkCopy(run) {
   ];
 }
 
+/** Folder trust shared between accounts, from a run of it (trustRunOf). */
+export function checkTrust(run) {
+  return [
+    {
+      name: 'the CLI reports a folder’s trust with workspace-trust --json',
+      hard: true,
+      ok: run.before?.trusted === false && run.before?.directory === run.work,
+      why: 'Claude Code’s extension asks this before each window’s sessions; Many Hats keeps the answer the same on every account.',
+    },
+    {
+      name: 'a trust record written as Many Hats writes it counts',
+      hard: true,
+      ok: run.after?.trusted === true,
+      why: 'Many Hats copies a folder’s trust to every account as projects[folder].hasTrustDialogAccepted.',
+    },
+    {
+      name: 'saving its config keeps a trust record Many Hats wrote',
+      hard: true,
+      ok: run.kept === true && run.savedByCli === true,
+      why: 'Claude Code must re-read its config before saving, or a shared trust record is lost.',
+    },
+    {
+      name: 'the CLI locks its config with <file>.lock while saving',
+      hard: false,
+      ok: run.sawLock === true,
+      why: 'Many Hats writes trust records under the same lock. Seeing it is timing-dependent, so this only warns.',
+    },
+  ];
+}
+
 /** The CLI commands Many Hats runs, from their --help. */
 export function checkCli(loginHelp, logoutHelp) {
   return [
@@ -377,6 +485,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     results.push(...checkCli(helpOf(cli, 'auth', 'login'), helpOf(cli, 'auth', 'logout')));
     results.push(...checkUsage(usageRunOf(cli)));
     results.push(...checkCopy(copyRunOf(cli)));
+    results.push(...checkTrust(await trustRunOf(cli)));
     tested.push(
       local ? `Claude Code CLI at ${local}` : `Claude Code CLI ${cli.version} (${CLI_PACKAGE}, npm)`,
     );

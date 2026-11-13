@@ -4,6 +4,12 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-13
+
+### Fixed
+
+- **"Trust this folder in Claude Code?" on every reload.** Claude Code keeps folder trust per account: it asked the account for new tabs, but recorded your answer on the account your session runs on, so the question kept coming back. A folder you've trusted on any account is now trusted on all of them, written under Claude Code's own lock. Many Hats never trusts a folder you haven't trusted on some account, and never untrusts one.
+
 ## [1.0.1] - 2026-11-12
 
 ### Fixed
@@ -66,7 +72,8 @@ First public pre-release.
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 
-[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.2...v1.0.0
 [0.9.2]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.1...v0.9.2
