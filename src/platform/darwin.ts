@@ -19,6 +19,7 @@ export function parseProcessEnv(command: string): ProcessEnv {
   return {
     configDir: dir?.[1] ? dir[1] : undefined,
     viaLauncher: /(?:^|\s)MANY_HATS_LAUNCHER=1(?=\s|$)/.test(command),
+    background: /(?:^|\s)MANY_HATS_BACKGROUND=1(?=\s|$)/.test(command),
     tokenAuth: /(?:^|\s)CLAUDE_CODE_OAUTH_TOKEN=\S/.test(command),
     tokenAccountUuid: uuid?.[1]?.toLowerCase(),
   };

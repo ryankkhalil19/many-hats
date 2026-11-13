@@ -6,8 +6,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-/** A background run shouldn't update Claude Code or send its analytics. */
+/**
+ * A background run shouldn't update Claude Code or send its analytics. MANY_HATS_BACKGROUND marks
+ * it as Many Hats' own, so the scanner doesn't take it for a tab that skipped the launcher.
+ */
 export const QUIET_ENV = {
+  MANY_HATS_BACKGROUND: '1',
   DISABLE_AUTOUPDATER: '1',
   DISABLE_TELEMETRY: '1',
   DISABLE_ERROR_REPORTING: '1',

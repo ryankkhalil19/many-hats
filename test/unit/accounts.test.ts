@@ -142,6 +142,7 @@ test('accountOfEnv: a login token decides the account whatever CLAUDE_CONFIG_DIR
   const env = (o: Partial<{ configDir: string; tokenAuth: boolean; tokenAccountUuid: string }>) => ({
     configDir: undefined,
     viaLauncher: true,
+    background: false,
     tokenAuth: false,
     tokenAccountUuid: undefined,
     ...o,

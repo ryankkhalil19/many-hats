@@ -11,6 +11,7 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
   assert.deepEqual(parseProcessEnv(cmd), {
     configDir: '/Users/me/.many-hats/accounts/work',
     viaLauncher: true,
+    background: false,
     tokenAuth: false,
     tokenAccountUuid: undefined,
   });
@@ -23,6 +24,7 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
   assert.deepEqual(parseProcessEnv('/x/claude'), {
     configDir: undefined,
     viaLauncher: false,
+    background: false,
     tokenAuth: false,
     tokenAccountUuid: undefined,
   });
@@ -30,6 +32,11 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
     parseProcessEnv('/x/claude CLAUDE_CONFIG_DIR=/a b/c NEXT=1').configDir,
     '/a b/c',
     'a path with a space',
+  );
+  assert.equal(
+    parseProcessEnv('/x/claude CLAUDE_CONFIG_DIR=/d MANY_HATS_BACKGROUND=1 DISABLE_TELEMETRY=1').background,
+    true,
+    'one of Many Hats’ own background runs',
   );
   assert.equal(
     parseProcessEnv('/x/claude CLAUDE_CODE_OAUTH_TOKEN= X=1').tokenAuth,

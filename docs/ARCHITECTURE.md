@@ -87,6 +87,8 @@ Every failure path falls through to step 4: an unreadable record, a missing fold
 | Tabs carry `MANY_HATS_LAUNCHER=1` once the wrapper is set | The wrapper is still honoured               | `Compat('processWrapper')`              |
 | One Keychain entry per config folder                      | Separate logins                             | design; unchanged since Claude Code 1.x |
 
+Many Hats' own background runs (the usage refresh, copies, sign-out) are children of the extension host too, like tabs. They carry `MANY_HATS_BACKGROUND=1`, and the scanner and the new-tab search leave them out: they're never shown as tabs, and never counted as tabs that skipped the launcher.
+
 `scripts/canary.mjs` runs nightly in CI against the latest Claude Code and opens an issue when a contract changes.
 
 ## Format checks (`Compat`)

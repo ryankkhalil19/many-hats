@@ -2,7 +2,8 @@
  * Which of this window's Claude Code tabs runs on which account.
  *
  * Claude Code starts one claude process per tab, as a child of the window's extension host. The
- * scanner lists those processes, reads each one's environment once (it can't change), maps it to
+ * scanner lists those processes (leaving out Many Hats' own background runs, which have the same
+ * parent), reads each one's environment once (it can't change), maps it to
  * an account, and finds its session in Claude Code's live-session records. The first time a
  * session is seen running on one of the accounts, it's assigned there for good.
  *
@@ -133,7 +134,8 @@ export class Scanner {
       for (const pid of pids) {
         if (this.procs.has(pid)) continue;
         const env = await platform.processEnv(pid);
-        if (!env) continue;
+        // Many Hats' own background runs (usage refresh, copy) are children of the host too.
+        if (!env || env.background) continue;
         this.procs.set(pid, env);
         if (this.first) this.preexisting.add(pid);
       }

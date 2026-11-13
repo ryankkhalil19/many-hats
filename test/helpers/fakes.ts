@@ -16,6 +16,7 @@ export class FakePlatform implements Platform {
     this.envs.set(pid, {
       configDir: undefined,
       viaLauncher: true,
+      background: false,
       tokenAuth: false,
       tokenAccountUuid: undefined,
       ...env,

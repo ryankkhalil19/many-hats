@@ -9,6 +9,8 @@ export interface ProcessEnv {
   configDir: string | undefined;
   /** Started through the Many Hats launcher. */
   viaLauncher: boolean;
+  /** One of Many Hats' own background runs (usage refresh, copy, sign-out): never a tab. */
+  background: boolean;
   /**
    * Started with CLAUDE_CODE_OAUTH_TOKEN (the Claude desktop app does this): it runs on that
    * token's account whatever CLAUDE_CONFIG_DIR says.

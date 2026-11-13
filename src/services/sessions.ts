@@ -176,13 +176,25 @@ export class SessionService {
     const { platform, hostPid } = this.deps;
     const deadline = Date.now() + (this.deps.newTabTimeoutMs ?? 20000);
     const accounts = new Map<number, string | undefined>();
+    const ignored = new Set<number>();
     let first: { pid: number; account: string | undefined } | undefined;
     let settleBy = Number.POSITIVE_INFINITY;
     while (Date.now() < Math.min(deadline, settleBy)) {
       await this.sleep(250);
       const now = await platform.claudeChildren(hostPid).catch(() => [] as number[]);
       for (const pid of now.filter((p) => !before.has(p))) {
-        if (!accounts.has(pid)) accounts.set(pid, await this.accountRunningOn(pid));
+        if (ignored.has(pid)) continue;
+        if (!accounts.has(pid)) {
+          const env = await this.deps.platform.processEnv(pid);
+          if (env?.background) {
+            ignored.add(pid); // a usage refresh or copy, not the tab
+            continue;
+          }
+          accounts.set(
+            pid,
+            env ? this.deps.store.accountOfEnv(env, this.deps.store.accountsByUuid()) : undefined,
+          );
+        }
         const account = accounts.get(pid);
         if (account === expected) return { pid, account };
         if (!first) {

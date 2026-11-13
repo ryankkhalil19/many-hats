@@ -289,6 +289,22 @@ test('scanner: tabs that skip the launcher pause routing with a notice; ones run
   assert.equal(w.compat.isDegraded('processWrapper'), false, 'recovers when tabs come through it again');
 });
 
+test('scanner: Many Hats’ own background runs aren’t tabs and never count as skipping the launcher', async () => {
+  const w = world();
+  await w.scanner.scan(); // the first scan, before any of them start
+  // A usage refresh on each account in turn, with no tab open: the 2026-11-13 false alarm.
+  for (let i = 0; i < 5; i++) {
+    const pid = 401 + i;
+    w.platform.children = [pid];
+    w.platform.env(pid, { viaLauncher: false, background: true, configDir: w.store.dir('work') });
+    await w.scanner.scan();
+    await w.scanner.scan();
+  }
+  assert.equal(w.compat.isDegraded('processWrapper'), false);
+  assert.deepEqual(w.scanner.running(), [], 'not shown as a running tab');
+  assert.equal(w.scanner.isHere(405), false);
+});
+
 test('scanner: a failing process list is logged once it repeats, never thrown', async () => {
   const w = world();
   w.platform.claudeChildren = () => Promise.reject(new Error('ps failed'));
@@ -349,6 +365,16 @@ test('new session: when only a process on another account starts, that’s what 
   };
   const out = await w.sessions.newSession('work');
   assert.deepEqual(out, { expected: 'work', started: true, startedOn: 'default' });
+});
+
+test('new session: a usage refresh starting at the same moment isn’t taken for the tab', async () => {
+  const w = world();
+  w.tabs.onOpen = () => {
+    w.platform.children.push(330);
+    w.platform.env(330, { viaLauncher: false, background: true, configDir: w.store.dir('work') });
+  };
+  const out = await w.sessions.newSession('work');
+  assert.deepEqual(out, { expected: 'work', started: false });
 });
 
 test('new session: unclaimed record is withdrawn; nothing started is reported; on the pick it just opens', async () => {

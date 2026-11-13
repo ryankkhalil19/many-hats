@@ -9,7 +9,7 @@ import type { Trash } from './sessions';
 import type { AccountStore } from '../state/accounts';
 import type { Assignments } from '../state/assignments';
 import type { Picks } from '../state/picks';
-import { cliEnv, cliEnvArgs } from '../claude/cli';
+import { cliEnv, cliEnvArgs, QUIET_ENV } from '../claude/cli';
 import { allSessionIds } from '../claude/transcripts';
 import { isAccountLocal } from '../claude/configFiles';
 import { UserError, errorText } from '../core/errors';
@@ -88,7 +88,10 @@ export class AccountsService {
     const binary = claudeBinary();
     if (binary) {
       try {
-        await run(binary, ['auth', 'logout'], { env: cliEnv(env, dir), timeoutMs: 30000 });
+        await run(binary, ['auth', 'logout'], {
+          env: { ...cliEnv(env, dir), ...QUIET_ENV },
+          timeoutMs: 30000,
+        });
       } catch (e) {
         log.warn(`claude auth logout for ${name} failed: ${errorText(e)}`);
       }

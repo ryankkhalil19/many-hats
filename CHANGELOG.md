@@ -4,6 +4,12 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-12
+
+### Fixed
+
+- **A false "Claude Code changed something Many Hats reads" warning** that paused starting tabs on their accounts. Many Hats' own usage refresh runs Claude Code from the editor, like a tab, and with no tab open the check took those runs for tabs that had skipped the launcher. Background runs are now marked as Many Hats' own and left out, so they never trip the check, show as a running tab, or get taken for a new tab.
+
 ## [1.0.0] - 2026-11-12
 
 ### Changed
@@ -60,7 +66,8 @@ First public pre-release.
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 
-[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.2...v1.0.0
 [0.9.2]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/ryankkhalil19/many-hats/releases/tag/v0.9.1
