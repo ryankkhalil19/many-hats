@@ -4,6 +4,12 @@ All notable changes to Many Hats. The format follows [Keep a Changelog](https://
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-20
+
+### Fixed
+
+- **"New Session" on an account opened the tab on the account for new tabs.** Recent Claude Code versions start other processes alongside a new tab, through the same launcher (a folder-trust check and a config probe), and whichever started first took the account meant for the tab. Only a tab's own process takes it now, and the check runs on the account for new tabs, as Claude Code expects.
+
 ## [1.0.2] - 2026-11-13
 
 ### Fixed
@@ -72,7 +78,8 @@ First public pre-release.
   - a token inherited from the Claude desktop app can't override the account;
   - the webview has a strict content security policy and every message it sends is checked.
 
-[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ryankkhalil19/many-hats/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ryankkhalil19/many-hats/compare/v0.9.2...v1.0.0

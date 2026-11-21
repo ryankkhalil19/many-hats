@@ -12,6 +12,12 @@ export interface ProcessEnv {
   /** One of Many Hats' own background runs (usage refresh, copy, sign-out): never a tab. */
   background: boolean;
   /**
+   * A session Claude Code talks to over stdio (--input-format stream-json) that isn't one of its
+   * config probes (CLAUDE_CODE_CONFIG_PROBE): a tab's process. Its other runs, such as the
+   * folder-trust check and the config probe it starts alongside a new tab, aren't.
+   */
+  tab: boolean;
+  /**
    * Started with CLAUDE_CODE_OAUTH_TOKEN (the Claude desktop app does this): it runs on that
    * token's account whatever CLAUDE_CONFIG_DIR says.
    */

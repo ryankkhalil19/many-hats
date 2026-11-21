@@ -63,7 +63,7 @@ Claude Code runs `launcher <claude binary> [args…]`. The launcher:
 
 1. **Without `~/.many-hats`** execs Claude unchanged. Many Hats removed means no effect at all.
 2. **Resumed sessions** (`--resume <id>`, `-r <id>`, `--session-id <id>`) start on the account in `assignments/<id>`.
-3. **A new tab** (not a resume) can claim `next/$PPID`. Its parent is the window's extension host. The claim is a `mv`, so exactly one process wins it.
+3. **A new tab** (not a resume) can claim `next/$PPID`. Its parent is the window's extension host. The claim is a `mv`, so exactly one process wins it. Only a session claims it: a process Claude Code talks to over stdio (`--input-format stream-json`) that isn't a config probe (`CLAUDE_CODE_CONFIG_PROBE`). Claude Code's other runs through the wrapper never do: the `workspace-trust` check and the config probe it starts alongside a new tab keep the pick and log `session=none`. The extension's wait for the new tab skips them too.
 4. **Anything else** keeps its environment: the window's pick, set in the extension host as `CLAUDE_CONFIG_DIR`.
 5. **Inherited login tokens are removed:** `CLAUDE_CODE_OAUTH_TOKEN` and its companions.
 6. **It sets `MANY_HATS_LAUNCHER=1`, logs one line, then `exec`s.** The pid, stdio, signals and exit code stay Claude's own.
@@ -77,6 +77,8 @@ Every failure path falls through to step 4: an unreadable record, a missing fold
 | `claudeCode.claudeProcessWrapper` setting                 | Starting every process through the launcher | nightly canary; health check            |
 | `claude-vscode.editor.open` command                       | Opening tabs                                | nightly canary                          |
 | `--resume <id>` when reopening a session                  | Routing resumed sessions                    | nightly canary                          |
+| `--input-format stream-json` on every session             | Telling a tab from Claude Code's other runs | nightly canary                          |
+| `CLAUDE_CODE_CONFIG_PROBE=1` on config probes             | Telling a tab from a config probe           | nightly canary                          |
 | `<config>/sessions/<pid>.json` with `sessionId`           | Which session a process is                  | `Compat('liveSessions')`                |
 | `.claude.json` `oauthAccount.emailAddress`                | Who an account is                           | `Compat('identity')`                    |
 | `.claude.json` `cachedUsageUtilization`                   | Usage windows                               | `Compat('usage')`                       |

@@ -120,7 +120,7 @@ test('anything without a usable record keeps the pick, and the log says why', ()
     'too long for an account name',
   );
   assert.equal(config(launch(t, [t.claude, '--resume=*'], env).out), t.dev, 'not a session id');
-  assert.match(lastLog(t), /session=new account=dev via=pick$/);
+  assert.match(lastLog(t), /session=none account=dev via=pick$/, 'and with no stdio session, not a tab');
   assert.equal(config(launch(t, [t.claude, `--resume=${A}0`], env).out), t.dev, 'too long for a session id');
   t.assign(C, '\n');
   assert.equal(config(launch(t, [t.claude, `--resume=${C}`], env).out), t.dev, 'an empty record');
@@ -198,19 +198,50 @@ test('the exit code, stdin and a missing bundled binary', () => {
 test('a new tab asked for on an account claims the window’s one-shot record; a resumed session never does', async () => {
   const t = rig();
   const env = { CLAUDE_CONFIG_DIR: '' };
-  const first = await launchFromShell(t, [t.claude], env, (ppid) => {
+  const session = ['--output-format', 'stream-json', '--verbose', '--input-format', 'stream-json'];
+  // Claude Code checks the folder's trust through the wrapper just before it opens the tab.
+  const trust = await launchFromShell(
+    t,
+    [t.claude, '--setting-sources', 'user', 'workspace-trust', '--json'],
+    env,
+    (ppid) => {
+      fs.mkdirSync(t.layout.nextDir, { recursive: true });
+      fs.writeFileSync(path.join(t.layout.nextDir, ppid), 'dev\n');
+    },
+  );
+  assert.equal(config(trust), '', 'the trust check keeps the pick');
+  assert.equal(fs.readdirSync(t.layout.nextDir).length, 1, 'and leaves the record for the tab');
+  assert.match(lastLog(t), /session=none account=default via=pick$/);
+  // And it starts a config probe alongside the tab: a stdio session too, but not the tab.
+  fs.rmSync(t.layout.nextDir, { recursive: true });
+  let probeParent = '';
+  const probe = await launchFromShell(
+    t,
+    [t.claude, ...session],
+    { ...env, CLAUDE_CODE_CONFIG_PROBE: '1' },
+    (ppid) => {
+      probeParent = ppid;
+      fs.mkdirSync(t.layout.nextDir, { recursive: true });
+      fs.writeFileSync(path.join(t.layout.nextDir, ppid), 'dev\n');
+    },
+  );
+  assert.equal(config(probe), '', 'the config probe keeps the pick');
+  assert.deepEqual(fs.readdirSync(t.layout.nextDir), [probeParent], 'and leaves the record for the tab');
+  assert.match(lastLog(t), /session=none account=default via=pick$/);
+  fs.rmSync(t.layout.nextDir, { recursive: true });
+  const first = await launchFromShell(t, [t.claude, ...session], env, (ppid) => {
     fs.mkdirSync(t.layout.nextDir, { recursive: true });
     fs.writeFileSync(path.join(t.layout.nextDir, ppid), 'dev\n');
   });
   assert.equal(config(first), t.dev, 'the new tab started on the requested account');
   assert.deepEqual(fs.readdirSync(t.layout.nextDir), [], 'claimed and deleted');
-  assert.match(lastLog(t), /account=dev via=next$/);
-  const resumed = await launchFromShell(t, [t.claude, '--resume', C], env, (ppid) => {
+  assert.match(lastLog(t), /session=new account=dev via=next$/);
+  const resumed = await launchFromShell(t, [t.claude, ...session, '--resume', C], env, (ppid) => {
     fs.writeFileSync(path.join(t.layout.nextDir, ppid), 'dev\n');
   });
   assert.equal(config(resumed), '', 'a resume is never the tab the window asked for: it keeps the pick');
   assert.equal(fs.readdirSync(t.layout.nextDir).length, 1, 'left for the tab it was meant for');
-  const other = await launchFromShell(t, [t.claude], env, () => {
+  const other = await launchFromShell(t, [t.claude, '--input-format=stream-json'], env, () => {
     // armed for a different window: not this one's
   });
   assert.equal(config(other), '', 'another window’s record is not this tab’s');

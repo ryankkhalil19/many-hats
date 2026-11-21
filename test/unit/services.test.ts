@@ -377,6 +377,19 @@ test('new session: a usage refresh starting at the same moment isn’t taken for
   assert.deepEqual(out, { expected: 'work', started: false });
 });
 
+test('new session: Claude Code’s folder-trust check just before the tab isn’t taken for it', async () => {
+  const w = world();
+  w.tabs.onOpen = () => {
+    // The trust check starts first, on the account asked for (where the launcher used to put it).
+    w.platform.children.push(340, 341);
+    w.platform.env(340, { tab: false, configDir: w.store.dir('work') });
+    w.platform.env(341, { configDir: w.store.dir('work') });
+  };
+  const out = await w.sessions.newSession('work');
+  assert.deepEqual(out, { expected: 'work', started: true, startedOn: 'work' });
+  assert.match(w.log.lines.join('\n'), /new tab \(pid 341\) started on work/);
+});
+
 test('new session: unclaimed record is withdrawn; nothing started is reported; on the pick it just opens', async () => {
   const w = world();
   const none = await w.sessions.newSession('work');

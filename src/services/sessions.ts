@@ -165,9 +165,10 @@ export class SessionService {
   }
 
   /**
-   * The new tab's process: a Claude process of this window that wasn't there before. Claude Code
-   * can start another one at the same moment, so a new process on another account is taken for
-   * the tab only once a short wait has shown none on the account asked for.
+   * The new tab's process: a session process of this window that wasn't there before. Claude
+   * Code runs other processes around it (its folder-trust check and a config probe), which are
+   * never the tab. It can also start another session at the same moment, so a new one on another
+   * account is taken for the tab only once a short wait has shown none on the account asked for.
    */
   private async findNewTab(
     before: ReadonlySet<number>,
@@ -186,8 +187,8 @@ export class SessionService {
         if (ignored.has(pid)) continue;
         if (!accounts.has(pid)) {
           const env = await this.deps.platform.processEnv(pid);
-          if (env?.background) {
-            ignored.add(pid); // a usage refresh or copy, not the tab
+          if (env && (env.background || !env.tab)) {
+            ignored.add(pid); // a usage refresh, a copy, Claude Code's trust check or config probe
             continue;
           }
           accounts.set(

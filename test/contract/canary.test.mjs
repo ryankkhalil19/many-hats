@@ -33,12 +33,15 @@ test('canary: the extension checks pass on a manifest like 2.1’s and catch eac
       },
     },
   };
-  const main = 'const w = config.get("claudeProcessWrapper"); args.push("--resume", id);';
+  const main =
+    'const w = config.get("claudeProcessWrapper"); let X=["--output-format","stream-json","--verbose","--input-format","stream-json"]; probe({CLAUDE_CODE_CONFIG_PROBE:"1"}); args.push("--resume", id);';
   assert.deepEqual(failing(check(manifest, main)), []);
   assert.deepEqual(failing(check({ contributes: {} }, '')), [
     'the process-wrapper setting exists',
     'the process-wrapper setting is still used',
     'resumed sessions are started with --resume',
+    'sessions are started with --input-format stream-json',
+    'config probes are marked with CLAUDE_CODE_CONFIG_PROBE',
     'the open-tab command exists',
     'view claudeVSCodeSidebar exists',
     'view claudeVSCodeSidebarSecondary exists',

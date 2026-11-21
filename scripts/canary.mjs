@@ -314,6 +314,18 @@ export function check(manifest, mainSource) {
       why: 'The launcher finds a resumed session’s account from this argument.',
     },
     {
+      name: 'sessions are started with --input-format stream-json',
+      hard: true,
+      ok: /["'`]--input-format["'`]\s*,\s*["'`]stream-json["'`]/.test(mainSource),
+      why: 'Only a process started this way is a tab: the launcher gives the account asked for to it, never to Claude Code’s other runs (its trust check before a tab opens).',
+    },
+    {
+      name: 'config probes are marked with CLAUDE_CODE_CONFIG_PROBE',
+      hard: true,
+      ok: /CLAUDE_CODE_CONFIG_PROBE\s*:\s*["'`]1["'`]/.test(mainSource),
+      why: 'A config probe is a stdio session started alongside a new tab: unmarked, it could take the account asked for the tab.',
+    },
+    {
       name: 'the open-tab command exists',
       hard: true,
       ok: commands.has('claude-vscode.editor.open'),

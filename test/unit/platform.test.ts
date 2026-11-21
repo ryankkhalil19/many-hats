@@ -12,6 +12,7 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
     configDir: '/Users/me/.many-hats/accounts/work',
     viaLauncher: true,
     background: false,
+    tab: false,
     tokenAuth: false,
     tokenAccountUuid: undefined,
   });
@@ -25,6 +26,7 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
     configDir: undefined,
     viaLauncher: false,
     background: false,
+    tab: false,
     tokenAuth: false,
     tokenAccountUuid: undefined,
   });
@@ -38,6 +40,23 @@ test('parseProcessEnv: the variables that decide an account, never a token’s v
     true,
     'one of Many Hats’ own background runs',
   );
+  const session =
+    '/x/claude --output-format stream-json --verbose --input-format stream-json --resume=abc MANY_HATS_LAUNCHER=1';
+  assert.equal(parseProcessEnv(session).tab, true, 'a session Claude Code talks to: a tab');
+  assert.equal(parseProcessEnv('/x/claude --input-format=stream-json X=1').tab, true);
+  assert.equal(
+    parseProcessEnv('/x/claude --setting-sources user workspace-trust --json MANY_HATS_LAUNCHER=1').tab,
+    false,
+    'Claude Code’s folder-trust check: not a tab',
+  );
+  assert.equal(parseProcessEnv('/x/claude --output-format stream-json X=1').tab, false, 'output alone');
+  assert.equal(
+    parseProcessEnv(`${session} CLAUDE_CODE_CONFIG_PROBE=1 X=1`).tab,
+    false,
+    'Claude Code’s config probe, started alongside a new tab: not a tab',
+  );
+  assert.equal(parseProcessEnv(`${session} CLAUDE_CODE_CONFIG_PROBE=0`).tab, true, 'a probe turned off');
+  assert.equal(parseProcessEnv(`${session} CLAUDE_CODE_CONFIG_PROBE= X=1`).tab, true, 'or empty');
   assert.equal(
     parseProcessEnv('/x/claude CLAUDE_CODE_OAUTH_TOKEN= X=1').tokenAuth,
     false,

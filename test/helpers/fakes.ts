@@ -17,6 +17,7 @@ export class FakePlatform implements Platform {
       configDir: undefined,
       viaLauncher: true,
       background: false,
+      tab: true,
       tokenAuth: false,
       tokenAccountUuid: undefined,
       ...env,

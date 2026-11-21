@@ -167,8 +167,16 @@ suite('Many Hats in a real editor', () => {
       // Claude Code opened its tab without starting a claude process (it can wait for sign-in).
       return this.skip();
     }
-    await waitFor(() => /account=work via=next/.test(log()), 30_000, 'the launcher’s decision');
+    await waitFor(() => /session=new account=work via=next/.test(log()), 30_000, 'the launcher’s decision');
     assert.equal(out.startedOn, 'work');
+    assert.equal(
+      log()
+        .split('\n')
+        .slice(before)
+        .some((l) => /session=new account=default via=pick/.test(l)),
+      false,
+      'the tab itself, not a run before it, took the account (Claude Code checks trust first)',
+    );
     assert.equal(api.app.nextTab.isArmed(process.pid), false, 'the one-shot record was claimed');
     await vscode.commands.executeCommand('claude-vscode.editor.open');
     await waitFor(

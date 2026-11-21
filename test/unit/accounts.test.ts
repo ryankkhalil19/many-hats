@@ -143,6 +143,7 @@ test('accountOfEnv: a login token decides the account whatever CLAUDE_CONFIG_DIR
     configDir: undefined,
     viaLauncher: true,
     background: false,
+    tab: true,
     tokenAuth: false,
     tokenAccountUuid: undefined,
     ...o,

@@ -11,7 +11,10 @@
 #      belongs to: ~/.many-hats/assignments/<id>, kept by the extension.
 #   2. A new tab the window asked to open on a given account claims ~/.many-hats/next/<pid of
 #      the window's extension host>, which is this process's parent. Claiming is a rename, so
-#      exactly one process gets it.
+#      exactly one process gets it. Only a tab's own process claims it: a session, which Claude
+#      Code talks to over stdio (--input-format stream-json), and not one of its config probes
+#      (CLAUDE_CODE_CONFIG_PROBE). Its other runs through the wrapper, such as the folder-trust
+#      check and the config probe it starts alongside a new tab, never do.
 #   3. Anything else keeps the environment it was given: the window's account for new tabs.
 #
 # A login token in the environment (CLAUDE_CODE_OAUTH_TOKEN, which the Claude desktop app gives
@@ -20,7 +23,8 @@
 #
 # It never stops Claude from starting. Without ~/.many-hats it changes nothing at all; a record
 # it can't use is skipped; logging failures are ignored. Each decision is one line in
-# ~/.many-hats/logs/launcher.log: time, pid, session, account and why. Never a secret.
+# ~/.many-hats/logs/launcher.log: time, pid, session (new, none for a run that isn't a tab, or
+# its id), account and why. Never a secret.
 #
 # The extension installs this file as ~/.many-hats/bin/launcher. Edit src/launcher/launcher.sh.
 
@@ -48,18 +52,23 @@ fi
 
 id=""
 resuming=0
+tab=0
 prev=""
 for arg in "$@"; do
   case "$prev" in
     --resume | -r) id="$arg" resuming=1 ;;
     --session-id) id="$arg" ;;
+    --input-format) [ "$arg" = stream-json ] && tab=1 ;;
   esac
   case "$arg" in
     --resume=*) id="${arg#*=}" resuming=1 ;;
     --session-id=*) id="${arg#*=}" ;;
+    --input-format=stream-json) tab=1 ;;
   esac
   prev="$arg"
 done
+# A config probe is a session too, started alongside a new tab, but it isn't the tab.
+case "${CLAUDE_CODE_CONFIG_PROBE:-}" in "" | 0 | false | no | off) ;; *) tab=0 ;; esac
 case "$id" in *[!0-9a-fA-F-]*) id="" ;; esac
 [ "${#id}" -eq 36 ] || id=""
 
@@ -72,7 +81,7 @@ if [ -n "$id" ] && [ -f "$root/assignments/$id" ]; then
   { read -r account _rest < "$root/assignments/$id"; } 2>/dev/null
   via="assignment"
 fi
-if [ -z "$account" ] && [ "$resuming" -eq 0 ] && [ -f "$root/next/$PPID" ]; then
+if [ -z "$account" ] && [ "$resuming" -eq 0 ] && [ "$tab" -eq 1 ] && [ -f "$root/next/$PPID" ]; then
   claim="$root/next/$PPID.claimed.$$"
   if mv "$root/next/$PPID" "$claim" 2>/dev/null; then
     { read -r account _rest < "$claim"; } 2>/dev/null
@@ -120,6 +129,12 @@ done
 MANY_HATS_LAUNCHER=1
 export MANY_HATS_LAUNCHER
 
+# The session for the log: its id, "new" for a new tab, "none" for a run that isn't a tab.
+session="$id"
+if [ -z "$session" ]; then
+  if [ "$tab" -eq 1 ]; then session="new"; else session="none"; fi
+fi
+
 # The account this process ends up on, for the log.
 effective="${CLAUDE_CONFIG_DIR:-}"
 if [ -z "$effective" ] || [ "$effective" = "${MANY_HATS_DEFAULT_DIR:-}" ]; then
@@ -136,7 +151,7 @@ fi
   fi
   (
     umask 077
-    printf '%s pid=%s session=%s account=%s via=%s%s%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "${id:-new}" \
+    printf '%s pid=%s session=%s account=%s via=%s%s%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$session" \
       "$effective" "$via" "${note:+ note=\"$note\"}" "${stripped:+ removed=$stripped}" >> "$logs/launcher.log"
   )
 } 2>/dev/null
